@@ -1,7 +1,0 @@
-{
-  "tool_name": "mcp__claude-in-chrome__browser_batch",
-  "tool_input_preview": "{\"actions\":[{\"name\":\"navigate\",\"input\":{\"url\":\"http://localhost:5175/game/58d351f1\",\"tabId\":816743993}},{\"name\":\"computer\",\"input\":{\"action\":\"wait\",\"duration\":2,\"tabId\":816743993}},{\"name\":\"computer\",...",
-  "error": "[navigate] Navigated to http://localhost:5175/game/58d351f1\n[computer:wait] Waited for 2 seconds\n\nactions[2] (computer:screenshot) failed: Error capturing screenshot: CDP sendCommand \"Page.captureScreenshot\" timed out after 30000ms on tab 816743993. The renderer may be frozen or unresponsive. (2 completed, 0 remaining)",
-  "timestamp": "2026-08-23T13:33:58.212Z",
-  "retry_count": 2
-}
