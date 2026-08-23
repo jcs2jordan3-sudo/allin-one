@@ -164,7 +164,7 @@ export function Modal({
         <div
           role="dialog"
           aria-modal="true"
-          className="relative bg-surface border-l border-line w-full max-w-md h-full overflow-y-auto p-6 shadow-2xl shadow-black/60"
+          className="relative glass-panel border-l border-line w-full max-w-md h-full overflow-y-auto p-6"
         >
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-lg font-bold tracking-tight">{title}</h3>
@@ -185,7 +185,7 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className={`relative card w-full ${wide ? 'max-w-3xl' : 'max-w-md'} p-6 shadow-2xl shadow-black/50 my-auto`}
+        className={`relative card glass-panel w-full ${wide ? 'max-w-3xl' : 'max-w-md'} p-6 my-auto`}
       >
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-bold tracking-tight">{title}</h3>

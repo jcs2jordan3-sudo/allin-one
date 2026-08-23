@@ -3,15 +3,15 @@
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
 
-  /* 다크 단일 테마 — 딥 블루블랙 그라운드 + 민트 액션 + 골드(재화·프라이즈) */
-  --color-bg: #0a0e13;
-  --color-surface: #121822;
-  --color-surface2: #182130;
-  --color-line: #232f3f;
-  --color-line2: #2e3d51;
-  --color-ink: #e9eef4;
-  --color-mut: #8c99a8;
-  --color-faint: #5c6a7a;
+  /* 리퀴드 글래스 다크 — 오로라 글로우 그라운드 위 반투명 유리 서피스 */
+  --color-bg: #07090e;
+  --color-surface: rgba(255, 255, 255, 0.045);
+  --color-surface2: rgba(255, 255, 255, 0.07);
+  --color-line: rgba(255, 255, 255, 0.09);
+  --color-line2: rgba(255, 255, 255, 0.17);
+  --color-ink: #edf1f6;
+  --color-mut: #94a1b0;
+  --color-faint: #64707f;
   --color-mint: #2fd6a0;
   --color-mintink: #062d21;
   --color-gold: #e9bb56;
@@ -26,7 +26,14 @@
     color-scheme: dark;
   }
   body {
-    @apply bg-bg text-ink font-sans antialiased;
+    @apply text-ink font-sans antialiased;
+    background:
+      radial-gradient(1000px 640px at 88% -12%, rgba(47, 214, 160, 0.13), transparent 60%),
+      radial-gradient(880px 620px at -8% 24%, rgba(169, 139, 245, 0.11), transparent 55%),
+      radial-gradient(760px 540px at 55% 118%, rgba(87, 182, 242, 0.09), transparent 60%),
+      var(--color-bg);
+    background-attachment: fixed;
+    min-height: 100vh;
   }
   ::selection {
     background: color-mix(in srgb, var(--color-mint) 30%, transparent);
@@ -51,8 +58,22 @@
 }
 
 @layer utilities {
+  /* 리퀴드 글래스 카드: 반투명 + 블러 + 상단 빛 모서리 + 부유 그림자 */
   .card {
-    @apply bg-surface border border-line rounded-2xl;
+    @apply bg-surface border border-line rounded-2xl backdrop-blur-xl;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 14px 44px -18px rgba(0, 0, 0, 0.6);
+  }
+  /* 떠 있는 패널(모달·드로어·헤더)용 — 가독성을 위해 더 진한 유리 */
+  .glass-panel {
+    background: rgba(11, 15, 22, 0.78);
+    backdrop-filter: blur(26px) saturate(1.25);
+    -webkit-backdrop-filter: blur(26px) saturate(1.25);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 24px 70px -20px rgba(0, 0, 0, 0.7);
   }
   .num {
     font-variant-numeric: tabular-nums;

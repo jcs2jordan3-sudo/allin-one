@@ -47,43 +47,23 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-8">
-      {/* 방문자 현황 + 게임 셋 */}
-      <div className="grid sm:grid-cols-2 gap-4">
-        <Card className="p-5">
-          <SectionTitle right={<Btn sm onClick={() => setWaitingOpen(true)}>편집하기</Btn>}>방문자 현황</SectionTitle>
-          <div className="flex items-center gap-6">
-            <div>
-              <span className="text-[12px] text-mut">대기 중</span>
-              <div className="text-2xl font-bold num">{st.waitingCount}</div>
-            </div>
-            <div className="w-px h-9 bg-line" />
-            <div>
-              <span className="text-[12px] text-mut">게임 중</span>
-              <div className="text-2xl font-bold num text-mint">{playingCount}</div>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5">
-          <SectionTitle right={<Btn sm onClick={() => setSetsOpen(true)}>편집하기</Btn>}>게임 셋 설정</SectionTitle>
-          <div>
-            <span className="text-[12px] text-mut">등록된 게임 셋</span>
-            <div className="text-2xl font-bold num">{st.gameSets.length}</div>
+      {/* 벤토 타일 — 방문자·게임 셋·빠른 작업 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <BentoTile label="대기 중" value={st.waitingCount} onEdit={() => setWaitingOpen(true)} />
+        <BentoTile label="게임 중" value={playingCount} accent="mint" />
+        <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={() => setSetsOpen(true)} />
+        <Card className="p-5 flex flex-col justify-between gap-3">
+          <span className="text-[11px] font-semibold tracking-widest text-faint uppercase">빠른 작업</span>
+          <div className="flex flex-col gap-2">
+            <Btn sm variant="primary" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
+            <Btn sm onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
           </div>
         </Card>
       </div>
 
       {/* 진행 중인 게임 */}
       <section>
-        <SectionTitle
-          right={
-            <>
-              <Btn sm onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
-              <Btn sm variant="primary" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
-            </>
-          }
-        >
-          진행 중인 게임
-        </SectionTitle>
+        <SectionTitle>진행 중인 게임</SectionTitle>
         {running.length === 0 ? (
           <Empty>진행 중인 게임이 없습니다. 게임을 추가해보세요.</Empty>
         ) : (
@@ -147,6 +127,32 @@ export default function DashboardTab() {
       <GameSetsModal open={setsOpen} onClose={() => setSetsOpen(false)} />
       <CreateGameModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
+  )
+}
+
+// ── 벤토 타일 ─────────────────────────────────────────────────────────────
+
+function BentoTile({
+  label,
+  value,
+  accent,
+  onEdit,
+}: {
+  label: string
+  value: number
+  accent?: 'mint'
+  onEdit?: () => void
+}) {
+  return (
+    <Card className="p-5 flex flex-col justify-between gap-3 min-h-28">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold tracking-widest text-faint uppercase">{label}</span>
+        {onEdit && (
+          <button onClick={onEdit} className="text-[12px] text-mut hover:text-mint transition-colors">편집</button>
+        )}
+      </div>
+      <div className={`text-4xl font-extrabold num leading-none ${accent === 'mint' ? 'text-mint' : ''}`}>{value}</div>
+    </Card>
   )
 }
 
