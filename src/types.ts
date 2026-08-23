@@ -8,12 +8,23 @@ export interface Member {
   nickname: string
   emoji: string
   color: string
+  realName?: string // 실명 (선택) — 공개 화면에는 노출하지 않음
   phone?: string
   balances: Record<Currency, number>
   rp: number
   joinedAt: number
   status: 'active' | 'left'
   memo?: string
+}
+
+/** RP 수동 조정 이력 — 수동 조정은 사유 필수 (§6-8 원칙) */
+export interface RpLogEntry {
+  id: string
+  ts: number
+  memberId: string
+  delta: number // +지급 / −환수
+  reason: string
+  operator: string
 }
 
 export interface Manager {

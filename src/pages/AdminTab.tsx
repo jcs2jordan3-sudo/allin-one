@@ -3,8 +3,9 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useSession, useStore } from '../store'
 import type { Manager, Member } from '../types'
 import { fmtDateTime, fmtNum } from '../lib/format'
-import { Badge, Btn, Card, Empty, Field, Input, Modal, SectionTitle } from '../components/ui'
+import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle } from '../components/ui'
 import Avatar from '../components/Avatar'
+import { withCompetitionRanks } from './RankingTab'
 
 type SortKey = 'joined' | 'nickname' | 'P' | 'S' | 'V'
 
@@ -387,13 +388,45 @@ function AddMemberModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ── 회원 상세 (우측 드로어, 탭 3개: 회원 정보 / 포인트 내역 / 메모) ────────
+
+const DETAIL_TABS = ['회원 정보', '포인트 내역', '메모'] as const
+type DetailTab = (typeof DETAIL_TABS)[number]
+
 function MemberDetailModal({ member, onClose }: { member: Member; onClose: () => void }) {
   const st = useStore()
   const live = st.members.find((m) => m.id === member.id) ?? member
-  const [confirmLeave, setConfirmLeave] = useState(false)
-  const [memo, setMemo] = useState(live.memo ?? '')
+  const [tab, setTab] = useState<DetailTab>('회원 정보')
 
-  const history = st.ledger.filter((l) => l.from === live.id || l.to === live.id).slice(0, 8)
+  return (
+    <Modal open onClose={onClose} title="회원 상세" side>
+      <div className="flex gap-1 border-b border-line mb-5 -mt-1">
+        {DETAIL_TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-3 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              tab === t ? 'border-mint text-ink' : 'border-transparent text-mut hover:text-ink'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      {tab === '회원 정보' && <MemberInfoTab live={live} onClose={onClose} />}
+      {tab === '포인트 내역' && <MemberLedgerTab live={live} />}
+      {tab === '메모' && <MemberMemoTab live={live} />}
+    </Modal>
+  )
+}
+
+function MemberInfoTab({ live, onClose }: { live: Member; onClose: () => void }) {
+  const st = useStore()
+  const [editOpen, setEditOpen] = useState(false)
+  const [rpMode, setRpMode] = useState<'give' | 'take' | null>(null)
+  const [transferMode, setTransferMode] = useState<'send' | 'reclaim' | null>(null)
+  const [confirmLeave, setConfirmLeave] = useState(false)
+
   const gameCount = st.games.filter((g) => g.entries.some((e) => e.memberId === live.id)).length
   const wins = st.games.filter((g) => g.entries.some((e) => e.memberId === live.id && e.rank === 1)).length
   const nowTs = Date.now()
@@ -401,84 +434,331 @@ function MemberDetailModal({ member, onClose }: { member: Member; onClose: () =>
   const passUnused = myPasses.filter((p) => p.status === 'unused' && nowTs <= p.expiresAt).length
   const passExpired = myPasses.filter((p) => p.status === 'unused' && nowTs > p.expiresAt).length
 
+  const season = st.seasons.find((s) => s.status === 'open' || s.status === 'closed')
+  const ranked = withCompetitionRanks(
+    [...st.members].filter((m) => m.status === 'active').sort((a, b) => b.rp - a.rp),
+  )
+  const myRank = ranked.find((r) => r.item.id === live.id)?.rank
+  const myRpLog = (st.rpLog ?? []).filter((l) => l.memberId === live.id).slice(0, 3)
+
   return (
-    <Modal open onClose={onClose} title="회원 상세" wide>
-      <div className="grid sm:grid-cols-[240px_1fr] gap-6">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Avatar emoji={live.emoji} color={live.color} size={52} />
-            <div>
-              <div className="font-bold text-lg">{live.nickname}</div>
-              <div className="text-[13px] text-mut num">회원번호 {live.no}</div>
-            </div>
+    <div className="space-y-6">
+      {/* 프로필 */}
+      <div className="flex items-start gap-4">
+        <Avatar emoji={live.emoji} color={live.color} size={56} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-lg truncate">{live.nickname}</span>
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-mut hover:text-mint text-sm px-1"
+              aria-label="프로필 수정"
+              title="프로필 수정"
+            >
+              ✎
+            </button>
           </div>
-          <div className="bg-white p-3 rounded-2xl w-fit">
-            <QRCodeSVG value={`member:${live.no}`} size={110} />
-          </div>
-          <div className="text-[12px] text-mut">개인 QR — 스캔으로 지급·참가 처리</div>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between"><span className="text-mut">가입일</span><span className="num">{fmtDateTime(live.joinedAt)}</span></div>
-            <div className="flex justify-between"><span className="text-mut">게임 참가</span><span className="num">{gameCount}회</span></div>
-            <div className="flex justify-between"><span className="text-mut">우승</span><span className="num text-gold">{wins}회</span></div>
-            <div className="flex justify-between"><span className="text-mut">시즌 RP</span><span className="num text-mint">{fmtNum(live.rp)}RP</span></div>
-            <div className="flex justify-between">
-              <span className="text-mut">이용권</span>
-              <span className="num">
-                미사용 {passUnused}장{passExpired > 0 && <span className="text-rose"> · 만료 {passExpired}장</span>}
-              </span>
-            </div>
-          </div>
+          <div className="text-[13px] text-mut num">{fmtDateTime(live.joinedAt)} 가입</div>
         </div>
-        <div className="space-y-4 min-w-0">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-surface2/70 border border-line rounded-xl px-3 py-2.5">
-              <div className="text-[11px] text-faint">포인트</div>
-              <div className="font-bold num text-gold">{fmtNum(live.balances.P)}</div>
-            </div>
-            <div className="bg-surface2/70 border border-line rounded-xl px-3 py-2.5">
-              <div className="text-[11px] text-faint">시드</div>
-              <div className="font-bold num text-sky">{fmtNum(live.balances.S)}</div>
-            </div>
-            <div className="bg-surface2/70 border border-line rounded-xl px-3 py-2.5">
-              <div className="text-[11px] text-faint">음료권</div>
-              <div className="font-bold num text-viol">{live.balances.V}장</div>
-            </div>
-          </div>
-          <div>
-            <div className="text-[12px] font-semibold text-mut mb-1.5">최근 거래</div>
-            <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-              {history.length === 0 && <div className="text-sm text-mut py-2">거래 이력이 없습니다.</div>}
-              {history.map((l) => (
-                <div key={l.id} className="flex items-center gap-2 text-[13px] px-3 py-1.5 bg-surface2/50 rounded-lg">
-                  <span className={`font-semibold num ${l.to === live.id ? 'text-mint' : 'text-rose'}`}>
-                    {l.to === live.id ? '+' : '−'}{fmtNum(l.amount)}
-                  </span>
-                  <Badge tone={l.currency === 'P' ? 'gold' : l.currency === 'S' ? 'sky' : 'viol'}>
-                    {l.currency === 'P' ? '포인트' : l.currency === 'S' ? '시드' : '음료권'}
-                  </Badge>
-                  <span className="text-mut truncate">{l.reason ?? ''}</span>
-                  <span className="ml-auto text-faint num shrink-0">{fmtDateTime(l.ts)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <Field label="관리 메모">
-            <div className="flex gap-2">
-              <Input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="예: VIP, 목요일 단골" />
-              <Btn sm onClick={() => st.updateMember(live.id, { memo })}>저장</Btn>
-            </div>
-          </Field>
-          <div className="pt-2 border-t border-line flex justify-end">
-            {confirmLeave ? (
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-rose">잔액이 전액 지점으로 환수됩니다. 진행할까요?</span>
-                <Btn sm variant="ghost" onClick={() => setConfirmLeave(false)}>취소</Btn>
-                <Btn sm variant="danger" onClick={() => { st.leaveMember(live.id); onClose() }}>탈퇴 처리</Btn>
+      </div>
+      <dl className="space-y-2 text-sm">
+        <div className="flex gap-6"><dt className="text-mut w-16 shrink-0">이름</dt><dd className="font-semibold">{live.realName || '—'}</dd></div>
+        <div className="flex gap-6"><dt className="text-mut w-16 shrink-0">회원번호</dt><dd className="font-semibold num">{live.no}</dd></div>
+        <div className="flex gap-6"><dt className="text-mut w-16 shrink-0">전화번호</dt><dd className="font-semibold num">{live.phone || '—'}</dd></div>
+      </dl>
+
+      {/* 랭킹 */}
+      <section className="border-t border-line pt-4">
+        <h4 className="text-[13px] font-bold mb-2.5 flex items-center gap-1.5">🏅 랭킹</h4>
+        <div className="flex items-baseline gap-2 flex-wrap text-sm">
+          <span className="text-mut">{season?.name ?? '시즌'}</span>
+          <span className="font-bold text-lg num">{myRank ? `${myRank}위` : '—'}</span>
+          <span className="text-mut">·</span>
+          <span className="font-bold num text-mint">RP {fmtNum(live.rp)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Btn sm onClick={() => setRpMode('give')}>RP 전송하기</Btn>
+          <Btn sm onClick={() => setRpMode('take')}>RP 환수하기</Btn>
+        </div>
+        {myRpLog.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {myRpLog.map((l) => (
+              <div key={l.id} className="flex items-center gap-2 text-[12px] px-2.5 py-1.5 bg-surface2/50 rounded-lg">
+                <span className={`font-semibold num ${l.delta > 0 ? 'text-mint' : 'text-rose'}`}>
+                  {l.delta > 0 ? '+' : ''}{fmtNum(l.delta)}RP
+                </span>
+                <span className="text-mut truncate">{l.reason}</span>
+                <span className="ml-auto text-faint num shrink-0">{fmtDateTime(l.ts)}</span>
               </div>
-            ) : (
-              <Btn sm variant="danger" onClick={() => setConfirmLeave(true)}>회원 탈퇴</Btn>
-            )}
+            ))}
           </div>
+        )}
+      </section>
+
+      {/* 보유 포인트 */}
+      <section className="border-t border-line pt-4">
+        <h4 className="text-[13px] font-bold mb-2.5 flex items-center gap-1.5">🪙 보유 포인트</h4>
+        <dl className="space-y-2 text-sm">
+          <div className="flex justify-between"><dt className="text-mut">포인트</dt><dd className="font-bold num text-gold">{fmtNum(live.balances.P)}P</dd></div>
+          <div className="flex justify-between"><dt className="text-mut">시드</dt><dd className="font-bold num text-sky">{fmtNum(live.balances.S)}S</dd></div>
+          <div className="flex justify-between"><dt className="text-mut">음료권</dt><dd className="font-bold num text-viol">{live.balances.V}장</dd></div>
+          <div className="flex justify-between">
+            <dt className="text-mut">이용권</dt>
+            <dd className="num">미사용 {passUnused}장{passExpired > 0 && <span className="text-rose"> · 만료 {passExpired}장</span>}</dd>
+          </div>
+        </dl>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Btn sm variant="primary" onClick={() => setTransferMode('send')}>전송하기</Btn>
+          <Btn sm onClick={() => setTransferMode('reclaim')}>환수하기</Btn>
+        </div>
+      </section>
+
+      {/* 전적 · QR */}
+      <section className="border-t border-line pt-4 flex items-start justify-between gap-4">
+        <dl className="space-y-2 text-sm flex-1">
+          <div className="flex justify-between"><dt className="text-mut">게임 참가</dt><dd className="num">{gameCount}회</dd></div>
+          <div className="flex justify-between"><dt className="text-mut">우승</dt><dd className="num text-gold">{wins}회</dd></div>
+        </dl>
+        <div className="text-center">
+          <div className="bg-white p-2 rounded-xl w-fit">
+            <QRCodeSVG value={`member:${live.no}`} size={84} />
+          </div>
+          <div className="text-[11px] text-mut mt-1">개인 QR</div>
+        </div>
+      </section>
+
+      <div className="border-t border-line pt-4 flex justify-end">
+        {confirmLeave ? (
+          <div className="flex items-center gap-2 text-[13px] flex-wrap justify-end">
+            <span className="text-rose">잔액이 전액 지점으로 환수됩니다.</span>
+            <Btn sm variant="ghost" onClick={() => setConfirmLeave(false)}>취소</Btn>
+            <Btn sm variant="danger" onClick={() => { st.leaveMember(live.id); onClose() }}>탈퇴 처리</Btn>
+          </div>
+        ) : (
+          <Btn sm variant="danger" onClick={() => setConfirmLeave(true)}>회원 탈퇴</Btn>
+        )}
+      </div>
+
+      {editOpen && <ProfileEditModal live={live} onClose={() => setEditOpen(false)} />}
+      {rpMode && <RpModal live={live} mode={rpMode} onClose={() => setRpMode(null)} />}
+      {transferMode && <MemberTransferModal live={live} mode={transferMode} onClose={() => setTransferMode(null)} />}
+    </div>
+  )
+}
+
+function MemberLedgerTab({ live }: { live: Member }) {
+  const ledger = useStore((s) => s.ledger)
+  const [page, setPage] = useState(1)
+  const PAGE = 8
+  const rows = ledger.filter((l) => l.from === live.id || l.to === live.id)
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE))
+  const pageRows = rows.slice((page - 1) * PAGE, page * PAGE)
+
+  if (rows.length === 0) return <div className="text-sm text-mut py-8 text-center">거래 이력이 없습니다.</div>
+  return (
+    <div>
+      <div className="space-y-1.5">
+        {pageRows.map((l) => (
+          <div key={l.id} className="px-3 py-2 bg-surface2/50 rounded-lg text-[13px]">
+            <div className="flex items-center gap-2">
+              <span className={`font-semibold num ${l.to === live.id ? 'text-mint' : 'text-rose'}`}>
+                {l.to === live.id ? '+' : '−'}{fmtNum(l.amount)}
+              </span>
+              <Badge tone={l.currency === 'P' ? 'gold' : l.currency === 'S' ? 'sky' : 'viol'}>
+                {l.currency === 'P' ? '포인트' : l.currency === 'S' ? '시드' : '음료권'}
+              </Badge>
+              <span className="ml-auto text-faint num">{fmtDateTime(l.ts)}</span>
+            </div>
+            {l.reason && <div className="text-mut mt-0.5 truncate">{l.reason}</div>}
+          </div>
+        ))}
+      </div>
+      <Pager page={page} pages={pages} onPage={setPage} />
+    </div>
+  )
+}
+
+function MemberMemoTab({ live }: { live: Member }) {
+  const updateMember = useStore((s) => s.updateMember)
+  const [memo, setMemo] = useState(live.memo ?? '')
+  const [saved, setSaved] = useState(false)
+
+  return (
+    <div className="space-y-3">
+      <textarea
+        value={memo}
+        onChange={(e) => { setMemo(e.target.value); setSaved(false) }}
+        rows={8}
+        placeholder="예: VIP, 목요일 단골, 리버킹과 동반 방문"
+        className="w-full bg-surface2 border border-line2 rounded-xl px-3.5 py-2.5 text-sm placeholder:text-faint focus:border-mint/60 outline-none resize-y"
+      />
+      <div className="flex items-center justify-end gap-3">
+        {saved && <span className="text-[13px] text-mint">저장되었습니다</span>}
+        <Btn sm variant="primary" onClick={() => { updateMember(live.id, { memo }); setSaved(true) }}>저장</Btn>
+      </div>
+    </div>
+  )
+}
+
+function ProfileEditModal({ live, onClose }: { live: Member; onClose: () => void }) {
+  const updateMember = useStore((s) => s.updateMember)
+  const [nickname, setNickname] = useState(live.nickname)
+  const [realName, setRealName] = useState(live.realName ?? '')
+  const [phone, setPhone] = useState(live.phone ?? '')
+  const [emoji, setEmoji] = useState(live.emoji)
+  const [color, setColor] = useState(live.color)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = () => {
+    if (!nickname.trim()) return setError('닉네임을 입력해주세요.')
+    updateMember(live.id, {
+      nickname: nickname.trim(),
+      realName: realName.trim() || undefined,
+      phone: phone.trim() || undefined,
+      emoji,
+      color,
+    })
+    onClose()
+  }
+
+  return (
+    <Modal open onClose={onClose} title="프로필 수정">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="닉네임">
+            <Input value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          </Field>
+          <Field label="이름 (실명, 선택)">
+            <Input value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="—" />
+          </Field>
+        </div>
+        <Field label="전화번호 (선택)">
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" />
+        </Field>
+        <Field label="아바타">
+          <div className="flex flex-wrap gap-1.5">
+            {EMOJIS.map((e) => (
+              <button
+                key={e}
+                onClick={() => setEmoji(e)}
+                className={`w-9 h-9 rounded-xl border text-lg ${emoji === e ? 'border-mint/70 bg-mint/10' : 'border-line2'}`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="컬러">
+          <div className="flex flex-wrap gap-1.5">
+            {COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                aria-label={`컬러 ${c}`}
+                className={`w-8 h-8 rounded-full border-2 ${color === c ? 'border-ink' : 'border-transparent'}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        </Field>
+        {error && <div className="text-sm text-rose">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <Btn variant="ghost" onClick={onClose}>취소</Btn>
+          <Btn variant="primary" onClick={submit}>저장</Btn>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function RpModal({ live, mode, onClose }: { live: Member; mode: 'give' | 'take'; onClose: () => void }) {
+  const adjustRp = useStore((s) => s.adjustRp)
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = () => {
+    const n = parseInt(amount, 10) || 0
+    const err = adjustRp(live.id, mode === 'give' ? n : -n, reason)
+    if (err) return setError(err)
+    onClose()
+  }
+
+  return (
+    <Modal open onClose={onClose} title={mode === 'give' ? 'RP 전송하기' : 'RP 환수하기'}>
+      <p className="text-[13px] text-mut leading-relaxed mb-4">
+        <b className="text-ink">{live.nickname}</b>님의 현재 RP는 <b className="text-mint num">{fmtNum(live.rp)}</b>입니다.
+        수동 조정은 사유가 필수이며 조정 이력에 기록됩니다.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="수량 (RP)">
+          <Input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+        </Field>
+        <Field label="사유 (필수)">
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'give' ? '예: 이벤트 보너스' : '예: 오지급 정정'} />
+        </Field>
+      </div>
+      {error && <div className="text-sm text-rose mt-3">{error}</div>}
+      <div className="flex justify-end gap-2 mt-5">
+        <Btn variant="ghost" onClick={onClose}>취소</Btn>
+        <Btn variant="primary" onClick={submit}>{mode === 'give' ? '전송' : '환수'}</Btn>
+      </div>
+    </Modal>
+  )
+}
+
+function MemberTransferModal({ live, mode, onClose }: { live: Member; mode: 'send' | 'reclaim'; onClose: () => void }) {
+  const transferToMember = useStore((s) => s.transferToMember)
+  const reclaimFromMember = useStore((s) => s.reclaimFromMember)
+  const [currency, setCurrency] = useState<'P' | 'S' | 'V'>('P')
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const labels = { P: '포인트', S: '시드', V: '음료권' } as const
+
+  const submit = () => {
+    const n = parseInt(amount, 10) || 0
+    if (mode === 'reclaim' && !reason.trim()) return setError('환수 사유를 입력해주세요.')
+    const err =
+      mode === 'send'
+        ? transferToMember(live.id, currency, n, reason.trim() || '지점 전송')
+        : reclaimFromMember(live.id, currency, n, reason.trim())
+    if (err) return setError(err)
+    onClose()
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`${live.nickname} — ${mode === 'send' ? '전송하기' : '환수하기'}`}>
+      <div className="space-y-4">
+        <Field label="재화">
+          <div className="grid grid-cols-3 gap-2">
+            {(['P', 'S', 'V'] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCurrency(c)}
+                className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-colors ${
+                  currency === c ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
+                }`}
+              >
+                {labels[c]}
+                <span className="block text-[11px] font-normal num">보유 {fmtNum(live.balances[c])}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="수량">
+            <Input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+          </Field>
+          <Field label={mode === 'reclaim' ? '사유 (필수)' : '사유 (선택)'}>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'reclaim' ? '예: 오지급 정정' : '예: 이벤트 지급'} />
+          </Field>
+        </div>
+        {error && <div className="text-sm text-rose">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <Btn variant="ghost" onClick={onClose}>취소</Btn>
+          <Btn variant="primary" onClick={submit}>{mode === 'send' ? '전송' : '환수'}</Btn>
         </div>
       </div>
     </Modal>

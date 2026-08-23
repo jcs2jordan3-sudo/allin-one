@@ -135,12 +135,14 @@ export function Modal({
   title,
   children,
   wide,
+  side,
 }: {
   open: boolean
   onClose: () => void
   title: string
   children: ReactNode
   wide?: boolean
+  side?: boolean // 우측 드로어 형태
 }) {
   useEffect(() => {
     if (!open) return
@@ -154,6 +156,29 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
+
+  if (side) {
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="relative bg-surface border-l border-line w-full max-w-md h-full overflow-y-auto p-6 shadow-2xl shadow-black/60"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-lg font-bold tracking-tight">{title}</h3>
+            <button onClick={onClose} aria-label="닫기" className="text-mut hover:text-ink text-xl leading-none px-1">
+              ×
+            </button>
+          </div>
+          {children}
+        </div>
+      </div>,
+      document.body,
+    )
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />

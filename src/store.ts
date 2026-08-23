@@ -3,7 +3,7 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 import { CLIENT_ID, hasSupabase, supabase } from './lib/supabase'
 import type {
   BuyinType, Currency, EventPost, Game, GameSet, LedgerEntry,
-  Manager, Member, Pass, PassLogEntry, PassType, Season, TableInfo,
+  Manager, Member, Pass, PassLogEntry, PassType, RpLogEntry, Season, TableInfo,
 } from './types'
 import { CURRENCY_UNIT } from './types'
 import { gameElapsedMs, isRegClosed, levelAt, levelStartMs } from './lib/time'
@@ -255,6 +255,7 @@ function seedState() {
       },
     ] as PassLogEntry[],
     bizResetAt: now - 5 * 3_600_000,
+    rpLog: [] as RpLogEntry[],
     wallet,
     members,
     managers: [{ id: uid(), loginId: 'manager1', name: '매니저1' }] as Manager[],
@@ -290,6 +291,7 @@ export interface Actions {
   addMember: (nickname: string, emoji: string, color: string, phone?: string) => void
   updateMember: (id: string, patch: Partial<Member>) => void
   leaveMember: (id: string) => void
+  adjustRp: (memberId: string, delta: number, reason: string) => string | null
   // 매니저
   addManager: (loginId: string, name: string) => void
   updateManager: (id: string, patch: Partial<Manager>) => void
@@ -414,6 +416,23 @@ export const useStore = create<Store>()(
           if (m.balances[c] > 0) get().reclaimFromMember(id, c, m.balances[c], '회원 탈퇴 잔액 환수')
         }
         set({ members: get().members.map((x) => (x.id === id ? { ...x, status: 'left' } : x)) })
+      },
+
+      adjustRp(memberId, delta, reason) {
+        const st = get()
+        const m = st.members.find((x) => x.id === memberId)
+        if (!m) return '회원을 찾을 수 없습니다.'
+        if (!delta) return '수량을 입력해주세요.'
+        if (!reason.trim()) return '사유를 입력해주세요. (수동 RP 조정은 사유 필수)'
+        if (m.rp + delta < 0) return `${m.nickname}님의 RP가 부족합니다.`
+        set({
+          members: st.members.map((x) => (x.id === memberId ? { ...x, rp: x.rp + delta } : x)),
+          rpLog: [
+            { id: uid(), ts: Date.now(), memberId, delta, reason: reason.trim(), operator: st.operatorName },
+            ...(st.rpLog ?? []),
+          ],
+        })
+        return null
       },
 
       addManager(loginId, name) {
@@ -884,9 +903,9 @@ export const useStore = create<Store>()(
     }),
     {
       name: STORE_KEY,
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => cloudStorage),
-      // 이전 버전 저장분에 이용권 필드가 없으면 시드를 주입 (기존 회원 ID로 리매핑)
+      // 이전 버전 저장분 마이그레이션: 없는 필드를 보충
       migrate: (persisted: unknown) => {
         const state = persisted as Record<string, unknown> & { members?: Member[]; passTypes?: PassType[] }
         if (state && !state.passTypes) {
@@ -899,6 +918,7 @@ export const useStore = create<Store>()(
           state.passLog = []
           state.bizResetAt = Date.now() - 5 * 3_600_000
         }
+        if (state && !state.rpLog) state.rpLog = []
         return state as never
       },
     },
