@@ -69,7 +69,7 @@ export default function GameDetail() {
         <SectionTitle>현재 게임 정보</SectionTitle>
         <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 text-sm">
           <div>
-            <dt className="text-[12px] text-mut mb-0.5">게임 (게임셋)</dt>
+            <dt className="text-[13px] text-mut mb-0.5">게임 (게임셋)</dt>
             <dd className="font-semibold flex items-center gap-2 flex-wrap">
               {game.name} <span className="text-mut font-normal">{game.gameSetName}</span>
               {game.cancelled ? (
@@ -85,13 +85,13 @@ export default function GameDetail() {
             </dd>
           </div>
           <div>
-            <dt className="text-[12px] text-mut mb-0.5">블라인드 레벨</dt>
+            <dt className="text-[13px] text-mut mb-0.5">블라인드 레벨</dt>
             <dd className="font-semibold num flex items-center gap-1.5 flex-wrap">
               {game.status !== 'ended' && (
                 <button
                   onClick={() => adjustToLevel(game.id, Math.max(0, pos.idx - 1))}
                   disabled={pos.idx === 0}
-                  className="w-6 h-6 rounded-md border border-line2 text-mut hover:text-ink disabled:opacity-30 text-[11px]"
+                  className="w-6 h-6 rounded-md border border-line2 text-mut hover:text-ink disabled:opacity-30 text-[12px]"
                   aria-label="이전 레벨로"
                   title="이전 레벨로 (수동 조정)"
                 >
@@ -104,7 +104,7 @@ export default function GameDetail() {
                 <button
                   onClick={() => adjustToLevel(game.id, Math.min(game.snapshot.levels.length - 1, pos.idx + 1))}
                   disabled={pos.idx >= game.snapshot.levels.length - 1}
-                  className="w-6 h-6 rounded-md border border-line2 text-mut hover:text-ink disabled:opacity-30 text-[11px]"
+                  className="w-6 h-6 rounded-md border border-line2 text-mut hover:text-ink disabled:opacity-30 text-[12px]"
                   aria-label="다음 레벨로"
                   title="다음 레벨로 (수동 조정)"
                 >
@@ -114,15 +114,15 @@ export default function GameDetail() {
             </dd>
           </div>
           <div>
-            <dt className="text-[12px] text-mut mb-0.5">진행 테이블</dt>
+            <dt className="text-[13px] text-mut mb-0.5">진행 테이블</dt>
             <dd className="font-semibold num">TABLE {game.tables.join(' · ')}</dd>
           </div>
           <div>
-            <dt className="text-[12px] text-mut mb-0.5">참여 인원</dt>
+            <dt className="text-[13px] text-mut mb-0.5">참여 인원</dt>
             <dd className="font-semibold num">{playing}/{game.entries.length}</dd>
           </div>
           <div>
-            <dt className="text-[12px] text-mut mb-0.5">진행 시간</dt>
+            <dt className="text-[13px] text-mut mb-0.5">진행 시간</dt>
             <dd className="font-semibold num">{fmtClock(elapsed)}</dd>
           </div>
         </dl>
@@ -165,7 +165,7 @@ export default function GameDetail() {
         <p className="text-sm text-mut leading-relaxed">
           <b className="text-ink">{game.name}</b> 게임을 취소할까요? 되돌릴 수 없습니다.
         </p>
-        <ul className="text-[13px] text-mut mt-3 space-y-1 list-disc pl-5">
+        <ul className="text-[14px] text-mut mt-3 space-y-1 list-disc pl-5">
           <li>모든 참가비({game.buyins.length}건)가 회원에게 환불됩니다</li>
           {game.status === 'ended' && <li>지급된 프라이즈·RP가 회수됩니다</li>}
           <li>게임 기록은 '취소됨' 상태로 보존됩니다</li>
@@ -208,7 +208,7 @@ function PlayerList({ game }: { game: Game }) {
           if (!m) return null
           return (
             <Card key={e.memberId} className={`px-4 py-3 flex items-center gap-3 ${e.status === 'eliminated' ? 'opacity-60' : ''}`}>
-              <span className="text-[12px] text-mut num w-24 shrink-0">TABLE {e.table} - {e.seat}</span>
+              <span className="text-[13px] text-mut num w-24 shrink-0">TABLE {e.table} - {e.seat}</span>
               <Avatar emoji={m.emoji} color={m.color} size={30} />
               <span className="font-semibold">{m.nickname}</span>
               <span className="ml-auto flex items-center gap-2">
@@ -331,11 +331,11 @@ function BuyinList({ game }: { game: Game }) {
                   {BUYIN_TYPE_LABEL[b.type as BuyinType]}{b.type !== 'BUYIN' ? ` ${b.round}` : ''}
                 </Badge>
                 <span className="font-semibold">{m?.nickname ?? '?'}</span>
-                <span className="text-mut text-[13px] num">
+                <span className="text-mut text-[14px] num">
                   {b.cost}{CURRENCY_UNIT[b.currency]} → {fmtNum(b.chips)}칩
                   {b.earlyBirdChips ? <span className="text-gold"> +EB {fmtNum(b.earlyBirdChips)}</span> : null}
                 </span>
-                <span className="ml-auto text-[12px] text-faint num">{new Date(b.ts).toLocaleString('ko-KR')}</span>
+                <span className="ml-auto text-[13px] text-faint num">{new Date(b.ts).toLocaleString('ko-KR')}</span>
               </Card>
             )
           })}
@@ -349,7 +349,7 @@ function BuyinList({ game }: { game: Game }) {
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface2/60 border border-line rounded-xl px-4 py-3">
-      <div className="text-[11px] text-faint font-semibold">{label}</div>
+      <div className="text-[12px] text-faint font-semibold">{label}</div>
       <div className="mt-0.5 font-bold num">{value}</div>
     </div>
   )
@@ -368,7 +368,7 @@ function EarlyBird({ game }: { game: Game }) {
       </p>
       <table className="w-full text-sm max-w-md">
         <thead>
-          <tr className="text-left text-[12px] text-mut border-b border-line">
+          <tr className="text-left text-[13px] text-mut border-b border-line">
             <th className="py-2 pr-4 font-semibold">참가 레벨</th>
             <th className="py-2 font-semibold text-right">얼리버드 칩</th>
           </tr>
@@ -401,7 +401,7 @@ function BuyinRules({ game }: { game: Game }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[420px]">
                 <thead>
-                  <tr className="text-left text-[12px] text-mut border-b border-line">
+                  <tr className="text-left text-[13px] text-mut border-b border-line">
                     <th className="py-2 pr-4 font-semibold w-16">회차</th>
                     <th className="py-2 pr-4 font-semibold">자원</th>
                     <th className="py-2 pr-4 font-semibold text-right">비용</th>
@@ -444,7 +444,7 @@ function Structure({ game }: { game: Game }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[480px]">
           <thead>
-            <tr className="text-left text-[12px] text-mut border-b border-line">
+            <tr className="text-left text-[13px] text-mut border-b border-line">
               <th className="py-2 pr-4 font-semibold">Level</th>
               <th className="py-2 pr-4 font-semibold text-right">시간(분)</th>
               <th className="py-2 pr-4 font-semibold text-right">SB</th>
@@ -463,7 +463,7 @@ function Structure({ game }: { game: Game }) {
               >
                 <td className={`py-2.5 pr-4 font-semibold ${l.type === 'break' ? 'text-gold' : ''}`}>
                   {l.label}
-                  {i === pos.idx && game.status !== 'ended' && <span className="ml-2 text-[11px] text-mint">● 진행 중</span>}
+                  {i === pos.idx && game.status !== 'ended' && <span className="ml-2 text-[12px] text-mint">● 진행 중</span>}
                 </td>
                 <td className="py-2.5 pr-4 text-right num">{l.durationMin === 0 ? '∞' : l.durationMin}</td>
                 {l.type === 'break' ? (

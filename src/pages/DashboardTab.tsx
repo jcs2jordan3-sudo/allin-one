@@ -53,7 +53,7 @@ export default function DashboardTab() {
         <BentoTile label="게임 중" value={playingCount} accent="mint" />
         <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={() => setSetsOpen(true)} />
         <Card className="p-5 flex flex-col justify-between gap-3">
-          <span className="text-[11px] font-semibold tracking-widest text-faint uppercase">빠른 작업</span>
+          <span className="text-[12px] font-semibold tracking-widest text-faint uppercase">빠른 작업</span>
           <div className="flex flex-col gap-2">
             <Btn sm variant="primary" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
             <Btn sm onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
@@ -97,7 +97,7 @@ export default function DashboardTab() {
           <Card className="overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-[12px] text-mut border-b border-line">
+                <tr className="text-left text-[13px] text-mut border-b border-line">
                   <th className="px-4 py-3 font-semibold">게임이름 (게임셋)</th>
                   <th className="px-4 py-3 font-semibold w-40">시작일시</th>
                   <th className="px-4 py-3 font-semibold w-40">종료일시</th>
@@ -108,7 +108,7 @@ export default function DashboardTab() {
                   <tr key={g.id} className="border-b border-line/60 last:border-0 hover:bg-surface2/50">
                     <td className="px-4 py-3">
                       <Link to={`/game/${g.id}`} className="font-semibold hover:text-mint">
-                        {g.name} <span className="text-mut font-normal text-[13px]">{g.gameSetName}</span>
+                        {g.name} <span className="text-mut font-normal text-[14px]">{g.gameSetName}</span>
                         {g.cancelled && <span className="ml-2"><Badge tone="rose">취소됨</Badge></span>}
                       </Link>
                     </td>
@@ -146,9 +146,9 @@ function BentoTile({
   return (
     <Card className="p-5 flex flex-col justify-between gap-3 min-h-28">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold tracking-widest text-faint uppercase">{label}</span>
+        <span className="text-[12px] font-semibold tracking-widest text-faint uppercase">{label}</span>
         {onEdit && (
-          <button onClick={onEdit} className="text-[12px] text-mut hover:text-mint transition-colors">편집</button>
+          <button onClick={onEdit} className="text-[13px] text-mut hover:text-mint transition-colors">편집</button>
         )}
       </div>
       <div className={`text-4xl font-extrabold num leading-none ${accent === 'mint' ? 'text-mint' : ''}`}>{value}</div>
@@ -183,7 +183,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-lg font-bold tracking-tight">{g.name}</h3>
+            <h3 className="text-xl font-bold tracking-tight">{g.name}</h3>
             {scheduled ? (
               <Badge tone="sky">예약됨 · {fmtDateTime(g.startedAt)} 시작</Badge>
             ) : closed ? (
@@ -198,7 +198,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
             {g.status === 'paused' ? (
               <button
                 onClick={() => resumeGame(g.id)}
-                className="w-7 h-7 rounded-full border border-mint/50 text-mint flex items-center justify-center text-[11px] hover:bg-mint/10"
+                className="w-7 h-7 rounded-full border border-mint/50 text-mint flex items-center justify-center text-[12px] hover:bg-mint/10"
                 aria-label="재개"
               >
                 ▶
@@ -206,7 +206,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
             ) : (
               <button
                 onClick={() => pauseGame(g.id)}
-                className="w-7 h-7 rounded-full border border-rose/50 text-rose flex items-center justify-center text-[11px] hover:bg-rose/10"
+                className="w-7 h-7 rounded-full border border-rose/50 text-rose flex items-center justify-center text-[12px] hover:bg-rose/10"
                 aria-label="일시정지"
               >
                 ⏸
@@ -245,7 +245,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
         </div>
       </div>
       <div className="mt-3 text-right">
-        <Link to={`/game/${g.id}`} className="text-[13px] text-mut hover:text-mint">자세히 보기 ›</Link>
+        <Link to={`/game/${g.id}`} className="text-[14px] text-mut hover:text-mint">자세히 보기 ›</Link>
       </div>
 
       <JoinModal game={g} open={joinOpen} onClose={() => setJoinOpen(false)} />
@@ -334,7 +334,7 @@ function WaitingModal({ open, onClose }: { open: boolean; onClose: () => void })
         <span className="text-3xl font-bold num w-16 text-center">{waitingCount}</span>
         <Btn onClick={() => setWaiting(waitingCount + 1)} aria-label="증가">+</Btn>
       </div>
-      <p className="text-[12px] text-mut text-center">게임 중 인원은 진행 중인 게임에서 자동 집계됩니다.</p>
+      <p className="text-[13px] text-mut text-center">게임 중 인원은 진행 중인 게임에서 자동 집계됩니다.</p>
     </Modal>
   )
 }
@@ -395,7 +395,7 @@ function GameSetsModal({ open, onClose }: { open: boolean; onClose: () => void }
             <div key={gs.id} className="flex items-center gap-3 px-4 py-3 border border-line rounded-xl">
               <div className="min-w-0 flex-1">
                 <div className="font-semibold">{gs.name}</div>
-                <div className="text-[12px] text-mut num">
+                <div className="text-[13px] text-mut num">
                   레벨 {gs.levels.length}개 · 레지 마감 {gs.levels[gs.regCloseLevelIndex]?.label ?? '—'} · 바인 {gs.buyinRules.find((r) => r.type === 'BUYIN')?.chips.toLocaleString()}칩
                 </div>
               </div>
@@ -469,7 +469,7 @@ function CreateGameModal({ open, onClose }: { open: boolean; onClose: () => void
           </Select>
         </Field>
         {selectedSet && selectedSet.prizes.length > 0 && (
-          <p className="text-[12px] text-mut -mt-2">
+          <p className="text-[13px] text-mut -mt-2">
             프라이즈 <span className="text-gold">{selectedSet.prizes.length}등까지 제공</span> ·{' '}
             {selectedSet.prizes.map((p) => `${p.rank}위 ${fmtNum(p.amount)}P`).join(' · ')}
           </p>
@@ -511,7 +511,7 @@ function CreateGameModal({ open, onClose }: { open: boolean; onClose: () => void
                   key={t.no}
                   disabled={busy}
                   onClick={() => toggle(t.no)}
-                  className={`px-3 py-1.5 rounded-lg border text-[13px] font-semibold num transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                  className={`px-3 py-1.5 rounded-lg border text-[14px] font-semibold num transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                     tables.includes(t.no) ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
                   }`}
                   title={busy ? '다른 게임에서 사용 중' : undefined}

@@ -46,7 +46,7 @@ function LockScreen({ pin }: { pin: string }) {
         <div className="font-extrabold tracking-tight text-lg mb-1">
           ♠ ALL-IN <span className="text-mint">ONE</span>
         </div>
-        <div className="text-[13px] text-mut mb-6">{storeName} · 잠금 상태</div>
+        <div className="text-[14px] text-mut mb-6">{storeName} · 잠금 상태</div>
         <input
           type="password"
           inputMode="numeric"
@@ -58,7 +58,7 @@ function LockScreen({ pin }: { pin: string }) {
           placeholder="PIN 입력"
           className="w-full bg-surface2 border border-line2 rounded-xl px-4 py-3 text-center text-lg tracking-[0.4em] placeholder:tracking-normal placeholder:text-faint outline-none focus:border-mint/60"
         />
-        {error && <div className="text-rose text-[13px] mt-2">PIN이 올바르지 않습니다</div>}
+        {error && <div className="text-rose text-[14px] mt-2">PIN이 올바르지 않습니다</div>}
         <button
           onClick={submit}
           className="mt-4 w-full bg-mint text-mintink font-semibold rounded-xl py-2.5 hover:brightness-110"

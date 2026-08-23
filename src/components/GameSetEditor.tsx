@@ -52,16 +52,16 @@ export default function GameSetEditor({ gameSet, onClose }: { gameSet: GameSet; 
         {/* 게임 스트럭쳐 */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[13px] font-bold">게임 스트럭쳐</span>
+            <span className="text-[14px] font-bold">게임 스트럭쳐</span>
             <div className="flex gap-2">
               <Btn sm onClick={() => addLevel('level')}>+ 레벨</Btn>
               <Btn sm onClick={() => addLevel('break')}>+ 브레이크</Btn>
             </div>
           </div>
           <div className="overflow-x-auto border border-line rounded-xl">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[14px]">
               <thead>
-                <tr className="text-left text-[11px] text-mut border-b border-line">
+                <tr className="text-left text-[12px] text-mut border-b border-line">
                   <th className="px-3 py-2">구분</th>
                   <th className="px-2 py-2 w-20">시간(분)</th>
                   <th className="px-2 py-2 w-24">SB</th>
@@ -114,11 +114,11 @@ export default function GameSetEditor({ gameSet, onClose }: { gameSet: GameSet; 
 
         {/* 참가 조건 */}
         <div>
-          <span className="text-[13px] font-bold block mb-2">참가 조건 (재화별 비용 → 지급 칩)</span>
+          <span className="text-[14px] font-bold block mb-2">참가 조건 (재화별 비용 → 지급 칩)</span>
           <div className="overflow-x-auto border border-line rounded-xl">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[14px]">
               <thead>
-                <tr className="text-left text-[11px] text-mut border-b border-line">
+                <tr className="text-left text-[12px] text-mut border-b border-line">
                   <th className="px-3 py-2">구분</th>
                   <th className="px-2 py-2 w-16">회차</th>
                   <th className="px-2 py-2 w-24">포인트</th>
@@ -146,7 +146,7 @@ export default function GameSetEditor({ gameSet, onClose }: { gameSet: GameSet; 
         {/* 얼리버드 · 프라이즈 */}
         <div className="grid sm:grid-cols-2 gap-5">
           <div>
-            <span className="text-[13px] font-bold block mb-2">얼리버드 (참가 레벨별 보너스 칩)</span>
+            <span className="text-[14px] font-bold block mb-2">얼리버드 (참가 레벨별 보너스 칩)</span>
             <div className="space-y-2">
               {gs.earlyBird.map((eb, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -171,7 +171,7 @@ export default function GameSetEditor({ gameSet, onClose }: { gameSet: GameSet; 
             </div>
           </div>
           <div>
-            <span className="text-[13px] font-bold block mb-2">프라이즈 (순위별 포인트)</span>
+            <span className="text-[14px] font-bold block mb-2">프라이즈 (순위별 포인트)</span>
             <div className="space-y-2">
               {gs.prizes.map((p, i) => (
                 <div key={i} className="flex items-center gap-2">

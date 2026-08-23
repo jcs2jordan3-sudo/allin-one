@@ -48,14 +48,14 @@ export default function PublicRanking() {
                 </span>
                 <span className="font-bold">{maskName(m.nickname)}</span>
                 <span className={`ml-auto font-bold num ${top3 ? 'text-gold text-lg' : ''}`}>
-                  {fmtNum(m.rp)}<span className="text-[12px] text-mut ml-0.5">RP</span>
+                  {fmtNum(m.rp)}<span className="text-[13px] text-mut ml-0.5">RP</span>
                 </span>
               </div>
             )
           })}
         </div>
         <footer className="text-center mt-10">
-          <Link to="/" className="text-[12px] text-white/30 hover:text-white/60">관리자 콘솔</Link>
+          <Link to="/" className="text-[13px] text-white/30 hover:text-white/60">관리자 콘솔</Link>
         </footer>
       </div>
     </div>

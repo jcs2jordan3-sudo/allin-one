@@ -24,6 +24,7 @@
 @layer base {
   html {
     color-scheme: dark;
+    font-size: 17px; /* rem 기반 타이포 전체 +6% — 매장 환경 가독성 */
   }
   body {
     @apply text-ink font-sans antialiased;

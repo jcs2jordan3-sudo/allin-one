@@ -28,7 +28,7 @@ export default function EventsTab() {
               <div className="min-w-0">
                 <div className="font-bold">{e.title}</div>
                 {e.body && <p className="text-sm text-mut mt-1 whitespace-pre-wrap">{e.body}</p>}
-                <div className="text-[12px] text-faint num mt-2">{fmtDate(e.createdAt)}</div>
+                <div className="text-[13px] text-faint num mt-2">{fmtDate(e.createdAt)}</div>
               </div>
               <div className="flex gap-2 shrink-0">
                 <Btn sm onClick={() => setEditing(e)}>수정</Btn>

@@ -57,7 +57,7 @@ export default function DisplayBoard() {
       <aside className="flex flex-col gap-3 max-lg:flex-row max-lg:flex-wrap">
         {stats.map((s) => (
           <div key={s.label} className="bg-black/40 border border-white/8 rounded-2xl px-4 py-3.5 backdrop-blur max-lg:flex-1 max-lg:min-w-36">
-            <div className="text-[10px] font-bold tracking-[0.18em] text-white/40">{s.label}</div>
+            <div className="text-[11px] font-bold tracking-[0.18em] text-white/40">{s.label}</div>
             <div className={`mt-1 text-xl font-extrabold num ${s.tone ?? ''}`}>{s.value}</div>
           </div>
         ))}
@@ -155,11 +155,11 @@ export default function DisplayBoard() {
           <div className="bg-white p-2.5 rounded-xl">
             <QRCodeSVG value={absUrl('/rank')} size={110} />
           </div>
-          <span className="text-[11px] text-white/40">스캔하고 랭킹 확인</span>
+          <span className="text-[12px] text-white/40">스캔하고 랭킹 확인</span>
         </div>
         <button
           onClick={fullscreen}
-          className="text-[12px] text-white/40 hover:text-white/80 py-1"
+          className="text-[13px] text-white/40 hover:text-white/80 py-1"
         >
           ⛶ 전체화면 전환
         </button>

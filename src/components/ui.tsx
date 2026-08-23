@@ -22,7 +22,7 @@ export function Btn({
   return (
     <button
       className={`inline-flex items-center justify-center gap-1.5 rounded-xl transition-colors disabled:opacity-40 disabled:pointer-events-none ${
-        sm ? 'px-3 py-1.5 text-[13px]' : 'px-4 py-2.5 text-sm'
+        sm ? 'px-3 py-1.5 text-[14px]' : 'px-4 py-2.5 text-sm'
       } ${btnStyles[variant]} ${className}`}
       {...rest}
     />
@@ -38,7 +38,7 @@ export function Card({ className = '', children }: { className?: string; childre
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-3">
-      <h2 className="text-[17px] font-bold tracking-tight">{children}</h2>
+      <h2 className="text-[20px] font-bold tracking-tight">{children}</h2>
       {right && <div className="flex items-center gap-2">{right}</div>}
     </div>
   )
@@ -62,7 +62,7 @@ export function Badge({
     mut: 'bg-surface2 text-mut border-line2',
   }
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[12px] font-semibold whitespace-nowrap ${tones[tone]}`}>
       {children}
     </span>
   )
@@ -93,7 +93,7 @@ export function Select({ className = '', children, ...rest }: SelectHTMLAttribut
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[12px] font-semibold text-mut mb-1.5 tracking-wide">{label}</span>
+      <span className="block text-[13px] font-semibold text-mut mb-1.5 tracking-wide">{label}</span>
       {children}
     </label>
   )
@@ -116,7 +116,7 @@ export function Segmented<T extends string>({
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+          className={`px-3.5 py-1.5 rounded-lg text-[14px] font-medium transition-colors ${
             value === o.value ? 'bg-mint text-mintink' : 'text-mut hover:text-ink'
           }`}
         >
@@ -214,7 +214,7 @@ export function Stat({ label, value, accent }: { label: string; value: ReactNode
   const color = accent ? { mint: 'text-mint', gold: 'text-gold', sky: 'text-sky', viol: 'text-viol' }[accent] : 'text-ink'
   return (
     <div className="bg-surface2/60 border border-line rounded-xl px-4 py-3">
-      <div className="text-[11px] font-semibold tracking-widest text-faint uppercase">{label}</div>
+      <div className="text-[12px] font-semibold tracking-widest text-faint uppercase">{label}</div>
       <div className={`mt-1 text-xl font-bold num ${color}`}>{value}</div>
     </div>
   )
@@ -231,7 +231,7 @@ export function Pager({ page, pages, onPage }: { page: number; pages: number; on
         <button
           key={p}
           onClick={() => onPage(p)}
-          className={`w-8 h-8 rounded-lg text-[13px] font-semibold ${
+          className={`w-8 h-8 rounded-lg text-[14px] font-semibold ${
             p === page ? 'bg-mint text-mintink' : 'text-mut hover:text-ink hover:bg-surface2'
           }`}
         >

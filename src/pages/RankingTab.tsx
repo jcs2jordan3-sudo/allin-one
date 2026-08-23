@@ -73,7 +73,7 @@ export default function RankingTab() {
                   <Avatar emoji={m.emoji} color={m.color} size={38} />
                   <span className="font-bold truncate">{m.nickname}</span>
                   <span className={`ml-auto font-bold num ${top3 ? 'text-gold text-lg' : 'text-ink'}`}>
-                    {fmtNum(m.rp)}<span className="text-[12px] font-semibold text-mut ml-0.5">RP</span>
+                    {fmtNum(m.rp)}<span className="text-[13px] font-semibold text-mut ml-0.5">RP</span>
                   </span>
                 </div>
               )
@@ -90,7 +90,7 @@ export default function RankingTab() {
               <Card key={s.id} className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-bold">{s.name}</span>
-                  <span className="text-[12px] text-mut num">{s.closedAt ? fmtDateTime(s.closedAt) : ''} 마감</span>
+                  <span className="text-[13px] text-mut num">{s.closedAt ? fmtDateTime(s.closedAt) : ''} 마감</span>
                 </div>
                 <div className="space-y-1.5">
                   {s.results?.slice(0, 5).map((r) => (
@@ -99,7 +99,7 @@ export default function RankingTab() {
                       <Avatar emoji={r.emoji} color={r.color} size={24} />
                       <span>{r.nickname}</span>
                       <span className="ml-auto num text-mut">{fmtNum(r.rp)}RP</span>
-                      {r.paid ? <span className="num text-gold text-[13px]">+{fmtNum(r.paid)}P</span> : null}
+                      {r.paid ? <span className="num text-gold text-[14px]">+{fmtNum(r.paid)}P</span> : null}
                     </div>
                   ))}
                 </div>
