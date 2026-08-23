@@ -307,6 +307,8 @@ export interface Actions {
   resumeGame: (id: string) => void
   closeReg: (id: string) => void
   adjustToLevel: (id: string, levelIdx: number) => void
+  updateGame: (id: string, patch: { name?: string; notice?: string; prizes?: import('./types').PrizeRule[] }) => void
+  adjustChips: (id: string, kind: 'correction' | 'addon', chips: number) => string | null
   joinGame: (gameId: string, memberId: string, type: BuyinType, currency: Currency) => string | null
   eliminate: (gameId: string, memberId: string) => void
   moveSeat: (gameId: string, memberId: string, table: number, seat: number) => void
@@ -551,6 +553,39 @@ export const useStore = create<Store>()(
             return { ...g, startedAt: ref - g.pausedTotal - target }
           }),
         })
+      },
+
+      updateGame(id, patch) {
+        set({
+          games: get().games.map((g) => {
+            if (g.id !== id || g.status === 'ended') return g
+            return {
+              ...g,
+              ...(patch.name !== undefined ? { name: patch.name } : {}),
+              ...(patch.notice !== undefined ? { notice: patch.notice || undefined } : {}),
+              ...(patch.prizes !== undefined ? { snapshot: { ...g.snapshot, prizes: patch.prizes } } : {}),
+            }
+          }),
+        })
+      },
+
+      adjustChips(id, kind, chips) {
+        const st = get()
+        const g = st.games.find((x) => x.id === id)
+        if (!g || g.status === 'ended') return '진행 중인 게임이 아닙니다.'
+        if (kind === 'addon' && chips <= 0) return '애드온 칩은 1 이상이어야 합니다.'
+        const base = selTotalChips(g)
+        if (kind === 'correction' && base + chips < 0) return '보정 후 전체 칩이 음수가 될 수 없습니다.'
+        set({
+          games: st.games.map((x) =>
+            x.id === id
+              ? kind === 'correction'
+                ? { ...x, chipCorrection: (x.chipCorrection ?? 0) + chips, correctionCount: (x.correctionCount ?? 0) + 1 }
+                : { ...x, addonChips: (x.addonChips ?? 0) + chips, addonCount: (x.addonCount ?? 0) + 1 }
+              : x,
+          ),
+        })
+        return null
       },
 
       joinGame(gameId, memberId, type, currency) {
@@ -976,4 +1011,6 @@ export const selPlayingCount = (st: Store) =>
     .reduce((acc, g) => acc + g.entries.filter((e) => e.status === 'playing').length, 0)
 
 export const selTotalChips = (g: Game) =>
-  g.buyins.reduce((acc, b) => acc + b.chips + (b.earlyBirdChips ?? 0), 0)
+  g.buyins.reduce((acc, b) => acc + b.chips + (b.earlyBirdChips ?? 0), 0) +
+  (g.chipCorrection ?? 0) +
+  (g.addonChips ?? 0)

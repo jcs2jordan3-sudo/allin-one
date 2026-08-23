@@ -115,6 +115,10 @@ export interface Game {
   endedAt?: number
   notice?: string // 게임별 공지 — 전광판 NOTICE 탭에 노출
   cancelled?: boolean // 취소(무효화)된 게임 — 지급분 역거래 회수 완료
+  chipCorrection?: number // 누적 칩 보정 (± 가능, 카운팅 오류 정정)
+  correctionCount?: number
+  addonChips?: number // 누적 애드온 칩
+  addonCount?: number
 }
 
 export interface LedgerEntry {

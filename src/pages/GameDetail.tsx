@@ -9,6 +9,7 @@ import { Badge, Btn, Card, Empty, Modal, Pager, SectionTitle } from '../componen
 import Avatar from '../components/Avatar'
 import JoinModal from '../components/JoinModal'
 import EndGameModal from '../components/EndGameModal'
+import GameEditModal from '../components/GameEditModal'
 import { Field, Select } from '../components/ui'
 import { appUrl } from '../lib/url'
 
@@ -27,6 +28,7 @@ export default function GameDetail() {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmRegClose, setConfirmRegClose] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   if (!game) {
     return (
@@ -51,6 +53,7 @@ export default function GameDetail() {
               <Btn sm variant="primary" onClick={() => setJoinOpen(true)}>참가 등록</Btn>
               <a href={appUrl(`/display/${game.id}`)} target="_blank" rel="noreferrer"><Btn sm variant="gold">전광판 열기</Btn></a>
               {!closed && <Btn sm onClick={() => setConfirmRegClose(true)}>레지 마감</Btn>}
+              <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
               <Btn sm variant="danger" onClick={() => setEndOpen(true)}>게임 종료</Btn>
             </>
           )}
@@ -148,6 +151,7 @@ export default function GameDetail() {
 
       <JoinModal game={game} open={joinOpen} onClose={() => setJoinOpen(false)} />
       <EndGameModal game={game} open={endOpen} onClose={() => setEndOpen(false)} />
+      {editOpen && <GameEditModal game={game} open={editOpen} onClose={() => setEditOpen(false)} />}
       <Modal open={confirmRegClose} onClose={() => setConfirmRegClose(false)} title="레지스트레이션 마감">
         <p className="text-sm text-mut leading-relaxed">
           지금부터 신규 바인·리바인·리엔트리를 차단할까요? 되돌릴 수 없습니다.
@@ -308,11 +312,12 @@ function BuyinList({ game }: { game: Game }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <StatBox label="전체 칩" value={fmtNum(total)} />
         <StatBox label="평균 스택" value={fmtNum(avg)} />
         <StatBox label="바인 / 리바인 / 리엔트리" value={`${counts.BUYIN}회 / ${counts.RE_BUYIN}회 / ${counts.RE_ENTRY}회`} />
         <StatBox label="총 바인" value={`${game.buyins.length}회`} />
+        <StatBox label="칩 보정 / 애드온" value={`${game.correctionCount ?? 0}회 / ${game.addonCount ?? 0}회`} />
       </div>
       {rows.length === 0 ? (
         <Empty>바인 기록이 없습니다.</Empty>

@@ -9,6 +9,7 @@ import { Badge, Btn, Card, Empty, Field, Input, Modal, SectionTitle, Segmented, 
 import JoinModal from '../components/JoinModal'
 import GameSetEditor from '../components/GameSetEditor'
 import EndGameModal from '../components/EndGameModal'
+import GameEditModal from '../components/GameEditModal'
 import { absUrl, appUrl } from '../lib/url'
 
 export default function DashboardTab() {
@@ -158,6 +159,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
   const [joinOpen, setJoinOpen] = useState(false)
   const [balanceOpen, setBalanceOpen] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const elapsed = gameElapsedMs(g, now)
   const pos = levelAt(g.snapshot.levels, elapsed)
@@ -228,6 +230,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
           </div>
           <div className="flex gap-2">
             <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
+            <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
             <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
             <a href={appUrl(`/display/${g.id}`)} target="_blank" rel="noreferrer">
               <Btn sm variant="gold">타이머</Btn>
@@ -242,6 +245,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
       <JoinModal game={g} open={joinOpen} onClose={() => setJoinOpen(false)} />
       <BalancingModal game={g} open={balanceOpen} onClose={() => setBalanceOpen(false)} />
       {confirmEnd && <EndGameModal game={g} open={confirmEnd} onClose={() => setConfirmEnd(false)} />}
+      {editOpen && <GameEditModal game={g} open={editOpen} onClose={() => setEditOpen(false)} />}
     </Card>
   )
 }
