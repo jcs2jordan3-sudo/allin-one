@@ -13,7 +13,8 @@ import Avatar from '../components/Avatar'
 import PasswordChange from '../components/PasswordChange'
 import PlayerShell from './PlayerShell'
 import { LocalNotice } from './JoinPage'
-import { fetchMe, fetchMyGames, fetchOpenGames, fetchStoreName, subscribeMe, updateMyProfile, type MyInfo } from './api'
+import { WAIT_STATUS_LABEL, type Pass, type PassType, type WaitEntry } from '../types'
+import { checkinSelf, checkoutSelf, fetchMe, fetchMyGames, fetchMyPasses, fetchMyWait, fetchOpenGames, fetchStoreName, subscribeMe, updateMyProfile, type MyInfo } from './api'
 
 /** 회원 내 정보 — 지갑·회원번호·진행 중 게임·참가 현황·최근 거래 */
 export default function MePage() {
@@ -27,6 +28,10 @@ export default function MePage() {
   const [mine, setMine] = useState<Game[]>([])
   const [storeName, setStoreName] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [wait, setWait] = useState<WaitEntry | null>(null)
+  const [passes, setPasses] = useState<{ passes: Pass[]; types: PassType[] }>({ passes: [], types: [] })
+  const [waitBusy, setWaitBusy] = useState(false)
+  const [waitErr, setWaitErr] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === 'ready' && !session) navigate('/join?r=/me', { replace: true })
@@ -42,7 +47,24 @@ export default function MePage() {
     fetchOpenGames(storeId).then(setOpen).catch(() => {})
     fetchMyGames(memberId).then(setMine).catch(() => {})
     fetchStoreName(storeId).then((s) => setStoreName(s?.name ?? '')).catch(() => {})
+    fetchMyWait(memberId).then((w) => setWait(w?.entry ?? null)).catch(() => {})
+    fetchMyPasses(memberId).then(setPasses).catch(() => {})
   }, [userId, memberId, storeId])
+
+  const doCheckin = async () => {
+    setWaitBusy(true); setWaitErr(null)
+    const r = await checkinSelf()
+    setWaitBusy(false)
+    if (r.error) return setWaitErr(r.error)
+    load()
+  }
+  const doCheckout = async () => {
+    setWaitBusy(true); setWaitErr(null)
+    const err = await checkoutSelf()
+    setWaitBusy(false)
+    if (err) return setWaitErr(err)
+    load()
+  }
   useEffect(load, [load])
   useEffect(() => {
     if (!memberId) return
@@ -114,6 +136,35 @@ export default function MePage() {
         <p className="mt-3 text-[12px] text-faint leading-relaxed">
           포인트 충전은 카운터에서 현금·카드로 결제하면 직원이 넣어드립니다. 회원번호를 알려주세요.
         </p>
+      </Card>
+
+      {/* 체크인 · 이용권 */}
+      <Card className="p-4 flex items-center gap-3 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-bold tracking-widest text-faint">매장 체크인</div>
+          {wait ? (
+            <div className="font-bold">
+              {wait.status === 'seated' ? `TABLE ${wait.table} · ${wait.seat}번 좌석 착석 중` : WAIT_STATUS_LABEL[wait.status]}
+              {wait.status === 'called' && <span className="text-gold text-[13px] ml-2">직원이 호출했어요!</span>}
+            </div>
+          ) : (
+            <div className="text-mut text-sm">체크인 전 · 좌석 QR을 스캔하면 자리에 체크인됩니다</div>
+          )}
+          {waitErr && <div className="text-[13px] text-rose mt-1">{waitErr}</div>}
+        </div>
+        {wait
+          ? <Btn sm variant="ghost" onClick={doCheckout} disabled={waitBusy}>체크아웃</Btn>
+          : <Btn sm variant="primary" onClick={doCheckin} disabled={waitBusy}>{waitBusy ? '…' : '도착 체크인'}</Btn>}
+        {(() => {
+          const valid = passes.passes.filter((p) => p.status === 'unused' && Date.now() <= p.expiresAt)
+          if (valid.length === 0) return null
+          const names = [...new Set(valid.map((p) => passes.types.find((t) => t.id === p.typeId)?.name ?? '이용권'))]
+          return (
+            <div className="w-full text-[13px] text-mut border-t border-line pt-2 mt-1">
+              🎫 이용권 <span className="text-ink font-semibold num">{valid.length}장</span> · {names.join(', ')}
+            </div>
+          )
+        })()}
       </Card>
 
       {/* 진행 중인 게임 */}

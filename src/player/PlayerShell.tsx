@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import OfflineBanner from '../components/OfflineBanner'
 
 /** 플레이어 모바일 화면 공통 틀 */
 export default function PlayerShell({
@@ -13,6 +14,7 @@ export default function PlayerShell({
 }) {
   return (
     <div className="min-h-screen stage-bg">
+      <OfflineBanner />
       <header className="sticky top-0 z-30 glass-panel border-b border-line !rounded-none">
         <div className="max-w-md mx-auto px-4 h-13 flex items-center justify-between py-3">
           <Link to="/me" className="flex items-center gap-2 min-w-0">

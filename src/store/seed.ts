@@ -1,8 +1,8 @@
 import type {
   Currency, EventPost, Game, GameSet, LedgerEntry, Manager, Member, Pass, PassLogEntry, PassType, RpLogEntry,
-  Season, TableInfo,
+  Season, TableInfo, WaitEntry,
 } from '../types'
-import type { ConsoleState, StoreState } from './types'
+import type { StoreState } from './types'
 
 export const uid = () => crypto.randomUUID().slice(0, 8)
 export const DAY = 86_400_000
@@ -47,16 +47,22 @@ export const seedPassTypes = (): PassType[] => [
   { id: uid(), name: '하이롤러', validDays: 60, color: '#A98BF5' },
 ]
 
-/** 콘솔 전용 상태의 기본값 — 클라우드 모드에서 console_state가 비어 있을 때 사용 */
-export function defaultConsoleState(): ConsoleState {
+export const DEFAULT_RANGE_DAYS = 30
+export const defaultRange = () => ({ from: Date.now() - DEFAULT_RANGE_DAYS * DAY, to: Date.now() + DAY })
+
+/** 로컬 모드 초기 콘솔 상태 (이용권 유형·시즌 등) */
+export function defaultLocalExtras() {
   return {
     passTypes: seedPassTypes(),
-    passes: [],
-    passLog: [],
+    passes: [] as Pass[],
+    passLog: [] as PassLogEntry[],
     bizResetAt: Date.now(),
-    rpLog: [],
-    seasons: [{ id: uid(), name: '시즌 1', startedAt: Date.now(), status: 'open' }],
-    waitingCount: 0,
+    rpLog: [] as RpLogEntry[],
+    seasons: [{ id: uid(), name: '시즌 1', startedAt: Date.now(), status: 'open' as const }] as Season[],
+    waitlist: [] as WaitEntry[],
+    auditLog: [],
+    ledgerRange: defaultRange(),
+    historyRange: defaultRange(),
   }
 }
 
@@ -67,7 +73,16 @@ export function emptyState(): StoreState {
     storeName: '',
     operatorName: '',
     lockPin: null,
-    ...defaultConsoleState(),
+    passTypes: [],
+    passes: [],
+    passLog: [],
+    bizResetAt: Date.now(),
+    rpLog: [],
+    seasons: [],
+    waitlist: [],
+    auditLog: [],
+    ledgerRange: defaultRange(),
+    historyRange: defaultRange(),
     wallet: { P: 0, S: 0, V: 0 },
     members: [],
     managers: [],
@@ -202,6 +217,11 @@ export function seedState(): StoreState {
       { no: 1, seats: 9 }, { no: 2, seats: 11 }, { no: 3, seats: 9 },
       { no: 4, seats: 9 }, { no: 5, seats: 11 },
     ] as TableInfo[],
-    waitingCount: 1,
+    waitlist: [
+      { id: uid(), memberId: members[5].id, status: 'waiting', source: 'qr', arrivedAt: now - 10 * 60_000 },
+    ] as WaitEntry[],
+    auditLog: [],
+    ledgerRange: defaultRange(),
+    historyRange: defaultRange(),
   }
 }

@@ -107,7 +107,10 @@ function LoginForm() {
         {error && <div className="text-sm text-rose">{error}</div>}
         <Btn variant="primary" className="w-full" onClick={submit} disabled={busy}>{busy ? '로그인 중…' : '로그인'}</Btn>
       </div>
-      <button onClick={() => setMode('signup')} className="mt-4 w-full text-[13px] text-mut hover:text-ink">초대받은 직원이에요 → 가입</button>
+      <div className="mt-4 flex items-center justify-between text-[13px]">
+        <button onClick={() => setMode('signup')} className="text-mut hover:text-ink">초대받은 직원이에요 → 가입</button>
+        <Link to="/reset" className="text-mut hover:text-ink">비밀번호 재설정</Link>
+      </div>
     </Shell>
   )
 }

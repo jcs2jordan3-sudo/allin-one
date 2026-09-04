@@ -13,7 +13,9 @@ export default function JoinPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const storeParam = params.get('s') ?? undefined
-  const redirect = params.get('r') || '/me'
+  const table = params.get('table')
+  const seat = params.get('seat')
+  const redirect = table ? `/checkin?table=${table}&seat=${seat ?? ''}` : params.get('r') || '/me'
   const status = useAuth((s) => s.status)
   const role = useAuth((s) => s.role)
   const session = useAuth((s) => s.session)
@@ -60,7 +62,9 @@ export default function JoinPage() {
     <PlayerShell storeName={store?.name}>
       <div className="text-center pt-2 pb-1">
         <h1 className="text-2xl font-black tracking-tight">{store?.name ?? '매장'} 회원가입</h1>
-        <p className="text-sm text-mut mt-1">가입하면 포인트 지갑이 생기고, 전광판 QR로 바로 바인할 수 있어요.</p>
+        <p className="text-sm text-mut mt-1">
+          {table ? `TABLE ${table} · ${seat}번 좌석 QR입니다. 가입 또는 로그인하면 이 자리에 체크인됩니다.` : '가입하면 포인트 지갑이 생기고, 전광판 QR로 바로 바인할 수 있어요.'}
+        </p>
       </div>
       <Card className="p-5">
         <AuthForm storeId={store?.id} onDone={() => navigate(redirect, { replace: true })} />

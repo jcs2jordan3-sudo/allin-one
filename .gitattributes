@@ -1,0 +1,7 @@
+# 줄바꿈: 저장소는 LF, 배치 파일만 CRLF
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.ico binary

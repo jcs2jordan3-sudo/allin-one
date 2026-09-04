@@ -47,8 +47,9 @@ export default function PassesTab() {
   }, [now])
 
   // 집계: 발급 = 기간 내 발급 건수 · 사용 = 기간 내 사용 건수 · 미사용 = 기간 내 발급분 중 아직 미사용
+  const activeTypes = st.passTypes.filter((t) => !t.archived)
   const agg = (from: number) =>
-    st.passTypes.map((t) => ({
+    activeTypes.map((t) => ({
       t,
       issued: st.passes.filter((p) => p.typeId === t.id && p.issuedAt >= from).length,
       used: st.passes.filter((p) => p.typeId === t.id && p.usedAt !== undefined && p.usedAt >= from).length,
@@ -313,7 +314,8 @@ function AggGrid({ data }: { data: { t: PassType; issued: number; unused: number
 
 function IssueModal({ onClose }: { onClose: () => void }) {
   const st = useStore()
-  const [typeId, setTypeId] = useState(st.passTypes[0]?.id ?? '')
+  const activeTypes = st.passTypes.filter((t) => !t.archived)
+  const [typeId, setTypeId] = useState(activeTypes[0]?.id ?? '')
   const [q, setQ] = useState('')
   const [memberId, setMemberId] = useState<string | null>(null)
   const [count, setCount] = useState('1')
@@ -322,7 +324,7 @@ function IssueModal({ onClose }: { onClose: () => void }) {
   const list = st.members
     .filter((m) => m.status === 'active')
     .filter((m) => !q || m.nickname.includes(q) || m.no.includes(q))
-  const selected = st.passTypes.find((t) => t.id === typeId)
+  const selected = activeTypes.find((t) => t.id === typeId)
 
   const submit = async () => {
     if (!memberId) return setError('회원을 선택해주세요.')
@@ -338,7 +340,7 @@ function IssueModal({ onClose }: { onClose: () => void }) {
         <div className="grid grid-cols-2 gap-3">
           <Field label="이용권 유형">
             <Select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
-              {st.passTypes.map((t) => (
+              {activeTypes.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </Select>
@@ -390,7 +392,7 @@ function TypesModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title="이용권 유형 관리" wide>
       <div className="space-y-2">
-        {st.passTypes.map((t) => (
+        {st.passTypes.filter((t) => !t.archived).map((t) => (
           <div key={t.id} className="flex items-center gap-3 px-4 py-3 border border-line rounded-xl flex-wrap">
             <span className="w-3 h-3 rounded-full shrink-0" style={{ background: t.color }} aria-hidden />
             <Input

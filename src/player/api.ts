@@ -2,8 +2,8 @@
 // 읽기는 RLS(본인 데이터·공개 게임)에 맡기고, 쓰기는 RPC만 사용한다.
 
 import { CLIENT_ID, supabase } from '../lib/supabase'
-import type { Currency, Game, LedgerEntry, Member } from '../types'
-import { errMsg, rowToGame, rowToLedger, rowToMember, walletsByOwner } from '../store/map'
+import type { Currency, Game, LedgerEntry, Member, Pass, PassType, WaitEntry, WaitStatus } from '../types'
+import { errMsg, rowToGame, rowToLedger, rowToMember, rowToPass, rowToPassType, rowToWait, walletsByOwner } from '../store/map'
 
 type Row = Record<string, unknown>
 const sb = () => {
@@ -133,4 +133,47 @@ export async function fetchStoreName(storeId?: string): Promise<{ id: string; na
   if (storeId) q = q.eq('id', storeId)
   const { data } = await q.maybeSingle()
   return data ? { id: String(data.id), name: String(data.name) } : null
+}
+
+// ── v2: 좌석 체크인 · 대기 · 내 이용권 ──────────────────────────────────
+
+export interface CheckinResult {
+  id: string
+  status: WaitStatus
+  table: number | null
+  seat: number | null
+  position: number | null
+}
+
+/** 셀프 체크인: 좌석 QR(table·seat)이면 착석, 없으면 대기 등록 */
+export async function checkinSelf(table?: number, seat?: number): Promise<{ result: CheckinResult | null; error: string | null }> {
+  const { data, error } = await sb().rpc('checkin_self', { p_table: table ?? null, p_seat: seat ?? null })
+  if (error) return { result: null, error: errMsg(error) }
+  return { result: data as CheckinResult, error: null }
+}
+
+export async function checkoutSelf(): Promise<string | null> {
+  const { error } = await sb().rpc('checkout_self', {})
+  return error ? errMsg(error) : null
+}
+
+/** 내 활성 대기/착석 항목 + 대기 순번 */
+export async function fetchMyWait(memberId: string): Promise<{ entry: WaitEntry; position: number | null } | null> {
+  const s = sb()
+  const { data, error } = await s.from('waitlist').select('*').eq('member_id', memberId)
+    .in('status', ['waiting', 'called', 'seated']).order('arrived_at', { ascending: false }).limit(1).maybeSingle()
+  if (error) throw new Error(errMsg(error))
+  if (!data) return null
+  const entry = rowToWait(data as Row)
+  return { entry, position: null }
+}
+
+export async function fetchMyPasses(memberId: string): Promise<{ passes: Pass[]; types: PassType[] }> {
+  const s = sb()
+  const [p, t] = await Promise.all([
+    s.from('passes').select('*').eq('member_id', memberId).order('issued_at', { ascending: false }),
+    s.from('pass_types').select('*'),
+  ])
+  if (p.error) throw new Error(errMsg(p.error))
+  return { passes: ((p.data ?? []) as Row[]).map(rowToPass), types: ((t.data ?? []) as Row[]).map(rowToPassType) }
 }

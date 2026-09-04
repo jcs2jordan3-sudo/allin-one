@@ -179,6 +179,46 @@ export interface PassType {
   name: string // 예: 1,000P / 10,000P / 하이롤러
   validDays: number // 발급일로부터 유효기간(일)
   color: string
+  archived?: boolean // 사용 이력이 있어 삭제 대신 보관된 유형
+}
+
+// ── 대기자 명단 · 좌석 체크인 (F-26) ──────────────────────────────────────
+
+export type WaitStatus = 'waiting' | 'called' | 'seated' | 'noshow' | 'cancelled' | 'left'
+export const WAIT_STATUS_LABEL: Record<WaitStatus, string> = {
+  waiting: '대기 중', called: '호출됨', seated: '착석', noshow: '노쇼', cancelled: '취소', left: '퇴장',
+}
+
+export interface WaitEntry {
+  id: string
+  memberId?: string
+  guestName?: string // 비회원(워크인)
+  status: WaitStatus
+  source: 'qr' | 'staff'
+  arrivedAt: number
+  calledAt?: number
+  seatedAt?: number
+  endedAt?: number
+  table?: number
+  seat?: number
+  note?: string
+}
+
+// ── 감사 로그 ─────────────────────────────────────────────────────────────
+
+export interface AuditEntry {
+  id: string
+  ts: number
+  actor: string
+  action: string // 예: members.update, staff.insert, store.reset
+  targetType: string
+  targetId?: string
+  detail?: Record<string, unknown>
+}
+
+export interface DateRange {
+  from: number
+  to: number
 }
 
 export type PassStatus = 'unused' | 'used' | 'revoked'

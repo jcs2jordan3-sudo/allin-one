@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSession, useStore } from '../store'
-import type { Manager, Member, StaffRole } from '../types'
+import type { AuditEntry, Manager, Member, StaffRole } from '../types'
 import { STAFF_ROLE_LABEL } from '../types'
 import { hasSupabase } from '../lib/supabase'
 import { fmtDateTime, fmtNum } from '../lib/format'
@@ -59,7 +59,7 @@ export default function AdminTab() {
         {hasSupabase && (
           <p className="text-[13px] text-mut mb-3 leading-relaxed">
             이메일과 역할을 등록하면 초대 상태가 됩니다. 해당 이메일로 콘솔에서 가입하면 자동으로 연결됩니다.
-            역할: 대표(전체) · 매니저(재화 전송·환수 가능) · 딜러(게임 운영만).
+            역할: 대표(직원 관리·데이터 초기화 포함 전체) · 매니저·딜러(게임 운영·재화 전송·환수·회원 관리). 모든 처리는 작업 이력에 남습니다.
           </p>
         )}
         {st.managers.length === 0 ? (
@@ -163,6 +163,9 @@ export default function AdminTab() {
       {/* 데이터 관리 */}
       <DataSection />
 
+      {/* 작업 이력 (감사 로그) */}
+      <AuditSection />
+
       {managerModal && <ManagerModal manager={managerModal === 'new' ? null : managerModal} onClose={() => setManagerModal(null)} />}
       {confirmDelMgr && (
         <Modal open onClose={() => setConfirmDelMgr(null)} title="직원 삭제">
@@ -180,6 +183,95 @@ export default function AdminTab() {
       {addOpen && <AddMemberModal onClose={() => setAddOpen(false)} />}
       <SignupQrModal open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
+  )
+}
+
+// ── 작업 이력 (감사 로그) ────────────────────────────────────────────────
+
+const AUDIT_ACTION: Record<string, string> = {
+  'members.insert': '회원 등록', 'members.update': '회원 정보 수정', 'members.delete': '회원 삭제', 'members.leave': '회원 탈퇴',
+  'staff.insert': '직원 초대', 'staff.update': '직원 변경', 'staff.delete': '직원 삭제',
+  'stores.update': '매장 설정 변경', 'store.reset': '데이터 초기화',
+  'game_sets.insert': '게임 셋 추가', 'game_sets.update': '게임 셋 수정', 'game_sets.delete': '게임 셋 삭제',
+  'games.insert': '게임 생성', 'games.update': '게임 변경', 'games.delete': '게임 삭제',
+  'pass_types.insert': '이용권 유형 추가', 'pass_types.update': '이용권 유형 수정', 'pass_types.delete': '이용권 유형 삭제',
+  'passes.insert': '이용권 발급', 'passes.update': '이용권 변경',
+  'seasons.insert': '시즌 시작', 'seasons.update': '시즌 변경', 'seasons.delete': '시즌 삭제',
+  'events.insert': '공지 등록', 'events.update': '공지 수정', 'events.delete': '공지 삭제',
+  'waitlist.insert': '대기 등록', 'waitlist.update': '대기 상태 변경',
+}
+const AUDIT_COL: Record<string, string> = {
+  nickname: '닉네임', phone: '전화번호', real_name: '실명', memo: '메모', emoji: '아바타', color: '컬러', rp: 'RP', status: '상태',
+  name: '이름', email: '이메일', role: '역할', user_id: '계정 연결', tables: '테이블', biz_reset_at: '영업일 기준',
+  reg_closed_manual: '레지 마감', notice: '공지', snapshot: '설정', cancelled: '취소', ended_at: '종료 시각',
+  valid_days: '유효기간', archived: '보관', expires_at: '만료일', used_at: '사용 시각', results: '결과',
+  title: '제목', body: '내용', table_no: '테이블', seat: '좌석', called_at: '호출', seated_at: '착석',
+}
+const AUDIT_FILTERS: { key: string; label: string }[] = [
+  { key: '', label: '전체' }, { key: 'members', label: '회원' }, { key: 'staff', label: '직원' },
+  { key: 'games', label: '게임' }, { key: 'game_sets', label: '게임 셋' }, { key: 'pass', label: '이용권' },
+  { key: 'stores', label: '매장' }, { key: 'waitlist', label: '대기' },
+]
+
+function auditDetail(a: AuditEntry): string {
+  const d = a.detail
+  if (!d) return ''
+  const f = (x: unknown) => (x == null || x === '' ? '—' : typeof x === 'object' ? '(변경)' : String(x))
+  if (a.action.endsWith('.update')) {
+    return Object.entries(d)
+      .map(([k, v]) => {
+        const [o, n] = Array.isArray(v) ? (v as unknown[]) : [undefined, v]
+        return `${AUDIT_COL[k] ?? k}: ${f(o)} → ${f(n)}`
+      })
+      .join(' · ')
+  }
+  const pick = ['nickname', 'name', 'email', 'role', 'title', 'no', 'mode', 'guest_name', 'status']
+  return pick.filter((k) => d[k] != null && d[k] !== '').map((k) => `${AUDIT_COL[k] ?? k}: ${String(d[k])}`).join(' · ')
+}
+
+function AuditSection() {
+  const auditLog = useStore((s) => s.auditLog)
+  const [filter, setFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE = 12
+  const rows = useMemo(() => auditLog.filter((a) => !filter || a.action.startsWith(filter)), [auditLog, filter])
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE))
+  const pageRows = rows.slice((page - 1) * PAGE, page * PAGE)
+
+  return (
+    <section>
+      <SectionTitle>작업 이력 <span className="text-[13px] text-mut font-normal ml-1">재화 이동은 포인트 내역에 기록</span></SectionTitle>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {AUDIT_FILTERS.map((fl) => (
+          <button
+            key={fl.key}
+            onClick={() => { setFilter(fl.key); setPage(1) }}
+            className={`px-3 py-1 rounded-full border text-[13px] font-semibold transition-colors ${
+              filter === fl.key ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
+            }`}
+          >
+            {fl.label}
+          </button>
+        ))}
+      </div>
+      {pageRows.length === 0 ? (
+        <Empty>{hasSupabase ? '기록된 작업이 없습니다.' : '작업 이력은 클라우드 모드에서 서버가 자동으로 기록합니다.'}</Empty>
+      ) : (
+        <Card className="divide-y divide-line/60">
+          {pageRows.map((a) => (
+            <div key={a.id} className="px-4 py-2.5 text-[14px] flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <span className="text-faint num text-[13px] w-32 shrink-0">{fmtDateTime(a.ts)}</span>
+              <span className="font-semibold w-20 shrink-0 truncate">{a.actor}</span>
+              <Badge tone={a.action === 'store.reset' || a.action.endsWith('.delete') || a.action.endsWith('.leave') ? 'rose' : 'mut'}>
+                {AUDIT_ACTION[a.action] ?? a.action}
+              </Badge>
+              <span className="text-mut min-w-0 truncate flex-1">{auditDetail(a)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+      <Pager page={page} pages={pages} onPage={setPage} />
+    </section>
   )
 }
 
@@ -416,8 +508,8 @@ function ManagerModal({ manager, onClose }: { manager: Manager | null; onClose: 
         <Field label="역할">
           <Select value={role} onChange={(e) => setRole(e.target.value as StaffRole)}>
             <option value="owner">대표 — 전체 권한 (직원 관리·초기화)</option>
-            <option value="manager">매니저 — 게임 운영 + 재화 전송·환수</option>
-            <option value="dealer">딜러 — 게임 운영만</option>
+            <option value="manager">매니저 — 게임 운영 + 재화 전송·환수 + 회원 관리</option>
+            <option value="dealer">딜러 — 매니저와 동일 권한 (호칭 구분용)</option>
           </Select>
         </Field>
         {hasSupabase && !manager && (
@@ -643,7 +735,7 @@ function MemberInfoTab({ live, onClose }: { live: Member; onClose: () => void })
       <div className="border-t border-line pt-4 flex justify-end">
         {confirmLeave ? (
           <div className="flex items-center gap-2 text-[14px] flex-wrap justify-end">
-            <span className="text-rose">잔액이 전액 지점으로 환수됩니다.</span>
+            <span className="text-rose">잔액 전액 환수 · 전화번호·실명 삭제 · 닉네임 익명화 (되돌릴 수 없음)</span>
             <Btn sm variant="ghost" onClick={() => setConfirmLeave(false)}>취소</Btn>
             <Btn sm variant="danger" onClick={() => { st.leaveMember(live.id); onClose() }}>탈퇴 처리</Btn>
           </div>

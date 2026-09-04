@@ -1,7 +1,8 @@
 // Supabase 행 ↔ 앱 타입 매핑. 시각은 앱 전체가 epoch ms(number)를 쓰므로 여기서 변환한다.
 
 import type {
-  BuyinEvent, Currency, Entry, EventPost, Game, GameSet, LedgerEntry, Manager, Member, StaffRole,
+  AuditEntry, BuyinEvent, Currency, Entry, EventPost, Game, GameSet, LedgerEntry, Manager, Member, Pass, PassLogEntry,
+  PassType, RpLogEntry, Season, StaffRole, WaitEntry,
 } from '../types'
 
 type Row = Record<string, unknown>
@@ -171,4 +172,91 @@ export function errMsg(e: unknown): string {
   if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) return '서버에 연결할 수 없습니다. 네트워크를 확인해주세요.'
   if (/JWT expired|invalid claim/i.test(raw)) return '로그인이 만료되었습니다. 다시 로그인해주세요.'
   return raw || '알 수 없는 오류가 발생했습니다.'
+}
+
+// ── v2: 이용권·시즌·RP 로그·대기자·감사 로그 ──────────────────────────────
+
+export function rowToPassType(r: Row): PassType {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    validDays: num(r.valid_days),
+    color: String(r.color ?? '#57B6F2'),
+    archived: Boolean(r.archived) || undefined,
+  }
+}
+
+export function rowToPass(r: Row): Pass {
+  return {
+    id: String(r.id),
+    typeId: String(r.type_id),
+    memberId: String(r.member_id),
+    issuedAt: ms(r.issued_at) ?? 0,
+    expiresAt: ms(r.expires_at) ?? 0,
+    status: String(r.status) as Pass['status'],
+    usedAt: ms(r.used_at),
+  }
+}
+
+export function rowToPassLog(r: Row): PassLogEntry {
+  return {
+    id: String(r.id),
+    ts: ms(r.ts) ?? 0,
+    action: String(r.action) as PassLogEntry['action'],
+    typeName: str(r.type_name),
+    memberId: str(r.member_id),
+    detail: str(r.detail),
+    operator: String(r.operator ?? ''),
+  }
+}
+
+export function rowToSeason(r: Row): Season {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    startedAt: ms(r.started_at) ?? 0,
+    status: String(r.status) as Season['status'],
+    closedAt: ms(r.closed_at),
+    results: (r.results as Season['results']) ?? undefined,
+  }
+}
+
+export function rowToRpLog(r: Row): RpLogEntry {
+  return {
+    id: String(r.id),
+    ts: ms(r.ts) ?? 0,
+    memberId: String(r.member_id),
+    delta: num(r.delta),
+    reason: String(r.reason ?? ''),
+    operator: String(r.operator ?? ''),
+  }
+}
+
+export function rowToWait(r: Row): WaitEntry {
+  return {
+    id: String(r.id),
+    memberId: str(r.member_id),
+    guestName: str(r.guest_name),
+    status: String(r.status) as WaitEntry['status'],
+    source: r.source === 'qr' ? 'qr' : 'staff',
+    arrivedAt: ms(r.arrived_at) ?? 0,
+    calledAt: ms(r.called_at),
+    seatedAt: ms(r.seated_at),
+    endedAt: ms(r.ended_at),
+    table: r.table_no == null ? undefined : num(r.table_no),
+    seat: r.seat == null ? undefined : num(r.seat),
+    note: str(r.note),
+  }
+}
+
+export function rowToAudit(r: Row): AuditEntry {
+  return {
+    id: String(r.id),
+    ts: ms(r.ts) ?? 0,
+    actor: String(r.actor ?? '시스템'),
+    action: String(r.action),
+    targetType: String(r.target_type),
+    targetId: str(r.target_id),
+    detail: (r.detail as Record<string, unknown> | null) ?? undefined,
+  }
 }

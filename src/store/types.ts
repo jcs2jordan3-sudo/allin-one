@@ -1,6 +1,6 @@
 import type {
-  BuyinType, Currency, EventPost, Game, GameSet, LedgerEntry, Manager, Member, Pass, PassLogEntry,
-  PassType, PrizeRule, RpLogEntry, Season, StaffRole, TableInfo,
+  AuditEntry, BuyinType, Currency, DateRange, EventPost, Game, GameSet, LedgerEntry, Manager, Member, Pass,
+  PassLogEntry, PassType, PrizeRule, RpLogEntry, Season, StaffRole, TableInfo, WaitEntry, WaitStatus,
 } from '../types'
 
 /** 콘솔이 보는 상태 — 로컬 모드/클라우드 모드 모두 동일한 모양 */
@@ -23,13 +23,11 @@ export interface StoreState {
   events: EventPost[]
   seasons: Season[]
   tables: TableInfo[]
-  waitingCount: number
+  waitlist: WaitEntry[] // 활성(대기·호출·착석) + 최근 종료 항목
+  auditLog: AuditEntry[]
+  ledgerRange: DateRange // 거래내역 조회 기간 (서버 조회 상한 대응)
+  historyRange: DateRange // 게임 기록 조회 기간
 }
-
-/** 클라우드 모드에서 console_state jsonb 한 행에 저장되는 콘솔 전용 키 (단일 작성자) */
-export const CONSOLE_KEYS = ['passTypes', 'passes', 'passLog', 'bizResetAt', 'rpLog', 'seasons', 'waitingCount'] as const
-export type ConsoleKey = (typeof CONSOLE_KEYS)[number]
-export type ConsoleState = Pick<StoreState, ConsoleKey>
 
 /** 액션 결과: 오류 메시지(문자열) 또는 null(성공) */
 export type Result = Promise<string | null>
@@ -72,8 +70,7 @@ export interface Actions {
   saveTables: (tables: TableInfo[]) => Result
   saveEvent: (post: Partial<EventPost> & { title: string; body: string }) => Result
   removeEvent: (id: string) => Result
-  settleSeason: (rewards: number[]) => Result
-  // 콘솔 전용 (이용권·시즌·대기자)
+  // 이용권
   savePassType: (t: PassType) => Result
   removePassType: (id: string) => Result
   issuePasses: (typeId: string, memberId: string, count: number) => Result
@@ -81,9 +78,16 @@ export interface Actions {
   extendPass: (passId: string, days: number) => Result
   revokePass: (passId: string) => Result
   resetBizDay: () => Result
-  setWaiting: (n: number) => Result
+  // 시즌
   closeSeason: () => Result
+  settleSeason: (rewards: number[]) => Result
   startSeason: (name: string) => Result
+  // 대기자 명단
+  addWait: (memberId?: string, guestName?: string, note?: string) => Result
+  updateWait: (id: string, status: WaitStatus, table?: number, seat?: number) => Result
+  // 조회 기간
+  setLedgerRange: (range: DateRange) => Result
+  setHistoryRange: (range: DateRange) => Result
 }
 
 export type Store = StoreState & Actions
@@ -91,6 +95,7 @@ export type Store = StoreState & Actions
 export type SetState = (patch: Partial<StoreState>) => void
 export type GetState = () => Store
 
-export type ConsoleActionKey =
+/** 로컬 모드에서 순수 상태 변환으로 구현되는 액션 (클라우드 모드는 RPC) */
+export type LocalOnlyKey =
   | 'savePassType' | 'removePassType' | 'issuePasses' | 'usePass' | 'extendPass' | 'revokePass'
-  | 'resetBizDay' | 'setWaiting' | 'closeSeason' | 'startSeason'
+  | 'resetBizDay' | 'closeSeason' | 'startSeason' | 'addWait' | 'updateWait'

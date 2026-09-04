@@ -154,6 +154,94 @@ create table if not exists public.events (
   created_at timestamptz not null default now()
 );
 
+-- ── v2: 이용권·시즌·RP 로그·대기자·감사 로그 (console_state jsonb → 정규 테이블) ──
+alter table public.stores add column if not exists biz_reset_at timestamptz not null default now();
+
+create table if not exists public.pass_types (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  name text not null,
+  valid_days int not null default 30 check (valid_days between 1 and 3650),
+  color text not null default '#57B6F2',
+  sort int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.passes (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  type_id uuid not null references public.pass_types(id) on delete restrict,
+  member_id uuid not null references public.members(id) on delete cascade,
+  issued_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  status text not null default 'unused' check (status in ('unused', 'used', 'revoked')),
+  used_at timestamptz
+);
+create index if not exists passes_store_issued on public.passes (store_id, issued_at desc);
+
+create table if not exists public.pass_log (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  ts timestamptz not null default now(),
+  action text not null,
+  type_name text,
+  member_id uuid,
+  detail text,
+  operator text
+);
+
+create table if not exists public.seasons (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  name text not null,
+  started_at timestamptz not null default now(),
+  status text not null default 'open' check (status in ('open', 'closed', 'settled')),
+  closed_at timestamptz,
+  results jsonb
+);
+
+create table if not exists public.rp_log (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  ts timestamptz not null default now(),
+  member_id uuid not null,
+  delta bigint not null,
+  reason text not null,
+  operator text
+);
+
+-- 대기자 명단 · 좌석 체크인 (F-26). source: qr = 손님 셀프, staff = 직원 등록
+create table if not exists public.waitlist (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  member_id uuid references public.members(id) on delete cascade,
+  guest_name text,
+  status text not null default 'waiting' check (status in ('waiting', 'called', 'seated', 'noshow', 'cancelled', 'left')),
+  source text not null default 'staff' check (source in ('qr', 'staff')),
+  arrived_at timestamptz not null default now(),
+  called_at timestamptz,
+  seated_at timestamptz,
+  ended_at timestamptz,
+  table_no int,
+  seat int,
+  note text
+);
+create index if not exists waitlist_store_active on public.waitlist (store_id, arrived_at) where status in ('waiting', 'called', 'seated');
+
+-- 감사 로그: 직원 행위 전부. 재화 이동은 ledger가 원본이므로 여기엔 설정·회원·게임·직원 변경을 남긴다.
+create table if not exists public.audit_log (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  ts timestamptz not null default now(),
+  actor_id uuid,
+  actor text,
+  action text not null,        -- 예: members.update, staff.insert, games.cancel
+  target_type text not null,
+  target_id text,
+  detail jsonb
+);
+create index if not exists audit_log_store_ts on public.audit_log (store_id, ts desc);
+
 -- ---------------------------------------------------------------------
 -- 2. 권한 헬퍼 (RLS 정책과 RPC가 공용)
 -- ---------------------------------------------------------------------
@@ -391,7 +479,7 @@ create or replace function public.transfer_to_member(
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members;
 begin
-  s := public._require_staff(array['owner', 'manager']);
+  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
   return public._move(s.store_id, 'store', m.id::text, p_currency, p_amount, p_reason, s.name, p_game, p_request);
@@ -403,7 +491,7 @@ create or replace function public.reclaim_from_member(
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members;
 begin
-  s := public._require_staff(array['owner', 'manager']);
+  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
   if coalesce(trim(p_reason), '') = '' then raise exception '환수 사유를 입력해주세요.'; end if;
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
@@ -416,7 +504,7 @@ returns uuid
 language plpgsql security definer set search_path = public as $$
 declare s public.staff;
 begin
-  s := public._require_staff(array['owner', 'manager']);
+  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
   if coalesce(trim(p_reason), '') = '' then raise exception '사유를 입력해주세요.'; end if;
   return public._move(s.store_id, 'hq', 'store', p_currency, p_amount, trim(p_reason), s.name, null, p_request);
 end $$;
@@ -438,32 +526,44 @@ begin
   return v_id;
 end $$;
 
--- 탈퇴: 잔액 전액 지점 환수 후 상태 변경 (원장 행은 보존)
+-- 탈퇴: 잔액 전액 지점 환수 → 개인정보 익명화 (원장 행은 익명 ID로 보존, 기획서 §6-9)
 create or replace function public.leave_member(p_member uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members; w record;
 begin
-  s := public._require_staff(array['owner', 'manager']);
+  s := public._require_staff();
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
+  if m.status = 'left' then return; end if;
   for w in select currency, balance from public.wallets where store_id = s.store_id and owner = m.id::text and balance > 0 loop
     perform public._move(s.store_id, m.id::text, 'store', w.currency, w.balance, '회원 탈퇴 잔액 환수', s.name, null, null);
   end loop;
-  update public.members set status = 'left' where id = m.id;
+  update public.waitlist set status = 'left', ended_at = now()
+   where member_id = m.id and status in ('waiting', 'called', 'seated');
+  update public.members set
+    status = 'left',
+    nickname = '탈퇴회원 ' || no,
+    real_name = null, phone = null, memo = null, user_id = null,
+    emoji = '👤', color = '#64707f'
+  where id = m.id;
+  insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
+  values (s.store_id, s.user_id, s.name, 'members.leave', 'member', m.id::text, jsonb_build_object('no', m.no, 'nickname', m.nickname));
 end $$;
 
--- RP 수동 조정 — 사유 필수 (조정 이력은 콘솔 상태에 기록)
+-- RP 수동 조정 — 사유 필수, rp_log에 기록
 create or replace function public.adjust_rp(p_member uuid, p_delta bigint, p_reason text) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members;
 begin
-  s := public._require_staff(array['owner', 'manager']);
+  s := public._require_staff();
   if coalesce(p_delta, 0) = 0 then raise exception '수량을 입력해주세요.'; end if;
   if coalesce(trim(p_reason), '') = '' then raise exception '사유를 입력해주세요. (수동 RP 조정은 사유 필수)'; end if;
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
   if m.rp + p_delta < 0 then raise exception '%님의 RP가 부족합니다.', m.nickname; end if;
   update public.members set rp = rp + p_delta where id = m.id;
+  insert into public.rp_log (store_id, member_id, delta, reason, operator)
+  values (s.store_id, m.id, p_delta, trim(p_reason), s.name);
 end $$;
 
 -- 회원 본인 프로필 수정
@@ -641,20 +741,31 @@ begin
      where (value->>'levelIndex')::int = v_idx limit 1;
   end if;
 
-  -- 좌석 배정: 인원 최소 테이블 → 빈 좌석 최소 번호
+  -- 좌석 배정: ① 좌석 QR로 체크인한 자리가 이 게임 테이블이고 비어 있으면 그대로 ② 아니면 인원 최소 테이블 → 빈 좌석 최소 번호
   if v_type in ('BUYIN', 'RE_ENTRY') then
-    select t.tno into v_table
-      from unnest(g.tables) as t(tno)
-      left join public.game_entries ge on ge.game_id = g.id and ge.table_no = t.tno and ge.status = 'playing'
-     group by t.tno order by count(ge.member_id) asc, t.tno asc limit 1;
-    if v_table is null then raise exception '이 게임에 배정된 테이블이 없습니다.'; end if;
-    select coalesce((tb.value->>'seats')::int, 9) into v_seats
-      from public.stores st, jsonb_array_elements(st.tables) tb
-     where st.id = g.store_id and (tb.value->>'no')::int = v_table limit 1;
-    v_seats := coalesce(v_seats, 9);
-    select min(sn) into v_seat from generate_series(1, v_seats + 1) sn
-     where sn not in (select seat from public.game_entries where game_id = g.id and table_no = v_table and status = 'playing');
-    v_seat := coalesce(v_seat, v_seats + 1);
+    select w.table_no, w.seat into v_table, v_seat
+      from public.waitlist w
+     where w.store_id = g.store_id and w.member_id = m.id and w.status = 'seated'
+       and w.table_no = any (g.tables) and w.seat is not null
+       and not exists (select 1 from public.game_entries ge where ge.game_id = g.id and ge.table_no = w.table_no and ge.seat = w.seat and ge.status = 'playing')
+     order by w.seated_at desc nulls last limit 1;
+    if v_table is null then
+      select t.tno into v_table
+        from unnest(g.tables) as t(tno)
+        left join public.game_entries ge on ge.game_id = g.id and ge.table_no = t.tno and ge.status = 'playing'
+       group by t.tno order by count(ge.member_id) asc, t.tno asc limit 1;
+      if v_table is null then raise exception '이 게임에 배정된 테이블이 없습니다.'; end if;
+      select coalesce((tb.value->>'seats')::int, 9) into v_seats
+        from public.stores st, jsonb_array_elements(st.tables) tb
+       where st.id = g.store_id and (tb.value->>'no')::int = v_table limit 1;
+      v_seats := coalesce(v_seats, 9);
+      select min(sn) into v_seat from generate_series(1, v_seats + 1) sn
+       where sn not in (select seat from public.game_entries where game_id = g.id and table_no = v_table and status = 'playing');
+      v_seat := coalesce(v_seat, v_seats + 1);
+    end if;
+    -- 대기 중이던 손님은 게임 착석으로 전환
+    update public.waitlist set status = 'seated', seated_at = coalesce(seated_at, now()), table_no = v_table, seat = v_seat
+     where store_id = g.store_id and member_id = m.id and status in ('waiting', 'called');
     if v_type = 'BUYIN' then
       insert into public.game_entries (game_id, member_id, table_no, seat, status) values (g.id, m.id, v_table, v_seat, 'playing');
     else
@@ -739,7 +850,7 @@ create or replace function public.cancel_game(p_game uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; g public.games; b record; r record; v_prize jsonb; v_rp bigint;
 begin
-  s := public._require_staff(array['owner', 'manager']);
+  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
   select * into g from public.games where id = p_game and store_id = s.store_id for update;
   if g.id is null or g.cancelled then return; end if;
 
@@ -769,18 +880,56 @@ begin
   update public.games set status = 'ended', ended_at = coalesce(ended_at, now()), cancelled = true where id = g.id;
 end $$;
 
--- 시즌 정산: 순위별 보상 지급 + 전 회원 RP 리셋 (전부 성공하거나 전부 취소)
-create or replace function public.settle_season(p_rewards jsonb, p_season_name text default '시즌') returns void
+-- ── 시즌 ────────────────────────────────────────────────────────────────
+create or replace function public.start_season(p_name text) returns uuid
 language plpgsql security definer set search_path = public as $$
-declare s public.staff; r jsonb;
+declare s public.staff; v_id uuid;
 begin
-  s := public._require_staff(array['owner', 'manager']);
-  for r in select value from jsonb_array_elements(coalesce(p_rewards, '[]'::jsonb)) loop
-    if coalesce((r->>'amount')::bigint, 0) > 0 then
-      perform public._move(s.store_id, 'store', r->>'memberId', 'P', (r->>'amount')::bigint,
-                           p_season_name || ' ' || (r->>'rank') || '위 시즌 보상', s.name, null, null);
+  s := public._require_staff();
+  if exists (select 1 from public.seasons where store_id = s.store_id and status in ('open', 'closed')) then
+    raise exception '진행 중이거나 정산 대기 중인 시즌이 있습니다.';
+  end if;
+  insert into public.seasons (store_id, name) values (s.store_id, coalesce(nullif(trim(p_name), ''), '새 시즌')) returning id into v_id;
+  return v_id;
+end $$;
+
+-- 시즌 마감: 현재 RP 순위를 스냅샷으로 고정
+create or replace function public.close_season() returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; v_id uuid; v_results jsonb;
+begin
+  s := public._require_staff();
+  select id into v_id from public.seasons where store_id = s.store_id and status = 'open' limit 1;
+  if v_id is null then raise exception '진행 중인 시즌이 없습니다.'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'memberId', x.id, 'nickname', x.nickname, 'emoji', x.emoji, 'color', x.color, 'rp', x.rp, 'rank', x.rk)
+           order by x.rk), '[]'::jsonb)
+    into v_results
+    from (select m.*, row_number() over (order by m.rp desc, m.joined_at) as rk
+            from public.members m where m.store_id = s.store_id and m.status = 'active' and m.rp > 0) x;
+  update public.seasons set status = 'closed', closed_at = now(), results = v_results where id = v_id;
+end $$;
+
+-- 시즌 정산: 마감된 시즌 결과에 순위별 보상(P) 지급 + 전 회원 RP 리셋 (전부 성공하거나 전부 취소)
+-- p_rewards: [{"rank":1,"amount":100000}, ...]
+create or replace function public.settle_season(p_rewards jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; sn public.seasons; r jsonb; v_amt bigint; v_results jsonb := '[]'::jsonb;
+begin
+  s := public._require_staff();
+  select * into sn from public.seasons where store_id = s.store_id and status = 'closed' limit 1;
+  if sn.id is null then raise exception '마감된 시즌이 없습니다. 먼저 시즌을 마감하세요.'; end if;
+  for r in select value from jsonb_array_elements(coalesce(sn.results, '[]'::jsonb)) loop
+    select (value->>'amount')::bigint into v_amt from jsonb_array_elements(coalesce(p_rewards, '[]'::jsonb))
+     where (value->>'rank')::int = (r->>'rank')::int limit 1;
+    v_amt := coalesce(v_amt, 0);
+    if v_amt > 0 then
+      perform public._move(s.store_id, 'store', r->>'memberId', 'P', v_amt,
+                           sn.name || ' ' || (r->>'rank') || '위 시즌 보상', s.name, null, null);
     end if;
+    v_results := v_results || (r || jsonb_build_object('paid', v_amt));
   end loop;
+  update public.seasons set status = 'settled', results = v_results where id = sn.id;
   update public.members set rp = 0 where store_id = s.store_id;
 end $$;
 
@@ -829,6 +978,7 @@ begin
   insert into public.staff (store_id, user_id, email, name, role)
   values (v_store, v_uid, coalesce(v_email, ''), coalesce(nullif(trim(p_owner_name), ''), '대표'), 'owner');
   insert into public.game_sets (store_id, name, data) values (v_store, '데일리 스탠다드', public._default_game_set());
+  perform public._ensure_store_defaults(v_store);
   return v_store;
 end $$;
 
@@ -875,12 +1025,21 @@ begin
   delete from public.game_entries where game_id in (select id from public.games where store_id = v_store);
   delete from public.games where store_id = v_store;
   delete from public.ledger where store_id = v_store;
+  delete from public.waitlist where store_id = v_store;
+  delete from public.passes where store_id = v_store;
+  delete from public.pass_log where store_id = v_store;
+  delete from public.rp_log where store_id = v_store;
+  delete from public.seasons where store_id = v_store;
   delete from public.wallets where store_id = v_store and owner <> 'store';
   delete from public.members where store_id = v_store;
   update public.wallets set balance = 0 where store_id = v_store and owner = 'store';
   delete from public.events where store_id = v_store;
+  update public.stores set biz_reset_at = now() where id = v_store;
   update public.console_state set state = '{}'::jsonb, updated_at = now() where store_id = v_store;
+  perform public._ensure_store_defaults(v_store);
   perform set_config('allinone.reset', 'off', true);
+  insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
+  values (v_store, s.user_id, s.name, 'store.reset', 'store', v_store::text, jsonb_build_object('mode', p_mode));
   if p_mode <> 'demo' then return; end if;
 
   select * into gs from public.game_sets where store_id = v_store order by created_at limit 1;
@@ -925,6 +1084,305 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- 8b. RPC — 이용권 (구매형 참가권, F-37)
+-- ---------------------------------------------------------------------
+alter table public.pass_types add column if not exists archived boolean not null default false;
+
+create or replace function public.issue_passes(p_type uuid, p_member uuid, p_count int) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; t public.pass_types; m public.members;
+begin
+  s := public._require_staff();
+  select * into t from public.pass_types where id = p_type and store_id = s.store_id and not archived;
+  select * into m from public.members where id = p_member and store_id = s.store_id and status = 'active';
+  if t.id is null or m.id is null then raise exception '유형 또는 회원을 찾을 수 없습니다.'; end if;
+  if coalesce(p_count, 0) < 1 or p_count > 100 then raise exception '발급 수량은 1~100 사이여야 합니다.'; end if;
+  insert into public.passes (store_id, type_id, member_id, expires_at)
+  select s.store_id, t.id, m.id, now() + t.valid_days * interval '1 day' from generate_series(1, p_count);
+  insert into public.pass_log (store_id, action, type_name, member_id, detail, operator)
+  values (s.store_id, '발급', t.name, m.id, t.name || ' × ' || p_count, s.name);
+end $$;
+
+create or replace function public.use_pass(p_pass uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; p public.passes; t public.pass_types;
+begin
+  s := public._require_staff();
+  select * into p from public.passes where id = p_pass and store_id = s.store_id for update;
+  if p.id is null then raise exception '이용권을 찾을 수 없습니다.'; end if;
+  if p.status <> 'unused' then raise exception '이미 사용되었거나 회수된 이용권입니다.'; end if;
+  if now() > p.expires_at then raise exception '만료된 이용권입니다. 연장 후 사용 처리하세요.'; end if;
+  select * into t from public.pass_types where id = p.type_id;
+  update public.passes set status = 'used', used_at = now() where id = p.id;
+  insert into public.pass_log (store_id, action, type_name, member_id, detail, operator)
+  values (s.store_id, '사용', t.name, p.member_id, '이용권 사용 처리', s.name);
+end $$;
+
+create or replace function public.extend_pass(p_pass uuid, p_days int) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; p public.passes; t public.pass_types;
+begin
+  s := public._require_staff();
+  select * into p from public.passes where id = p_pass and store_id = s.store_id for update;
+  if p.id is null then raise exception '이용권을 찾을 수 없습니다.'; end if;
+  if p.status <> 'unused' then raise exception '미사용 상태의 이용권만 연장할 수 있습니다.'; end if;
+  if coalesce(p_days, 0) < 1 or p_days > 365 then raise exception '연장 일수는 1~365 사이여야 합니다.'; end if;
+  select * into t from public.pass_types where id = p.type_id;
+  update public.passes set expires_at = greatest(now(), expires_at) + p_days * interval '1 day' where id = p.id;
+  insert into public.pass_log (store_id, action, type_name, member_id, detail, operator)
+  values (s.store_id, '연장', t.name, p.member_id, '+' || p_days || '일', s.name);
+end $$;
+
+create or replace function public.revoke_pass(p_pass uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; p public.passes; t public.pass_types;
+begin
+  s := public._require_staff();
+  select * into p from public.passes where id = p_pass and store_id = s.store_id for update;
+  if p.id is null then raise exception '이용권을 찾을 수 없습니다.'; end if;
+  if p.status <> 'unused' then raise exception '미사용 상태의 이용권만 회수할 수 있습니다.'; end if;
+  select * into t from public.pass_types where id = p.type_id;
+  update public.passes set status = 'revoked' where id = p.id;
+  insert into public.pass_log (store_id, action, type_name, member_id, detail, operator)
+  values (s.store_id, '회수', t.name, p.member_id, null, s.name);
+end $$;
+
+-- 유형 삭제: 미사용권이 남아 있으면 거부, 사용 이력이 있으면 보관(archived), 없으면 삭제
+create or replace function public.remove_pass_type(p_type uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff;
+begin
+  s := public._require_staff();
+  if not exists (select 1 from public.pass_types where id = p_type and store_id = s.store_id) then raise exception '유형을 찾을 수 없습니다.'; end if;
+  if exists (select 1 from public.passes where type_id = p_type and status = 'unused' and now() <= expires_at) then
+    raise exception '미사용 이용권이 남아 있는 유형은 삭제할 수 없습니다.';
+  end if;
+  if exists (select 1 from public.passes where type_id = p_type) then
+    update public.pass_types set archived = true where id = p_type;
+  else
+    delete from public.pass_types where id = p_type;
+  end if;
+end $$;
+
+-- 영업일 집계 초기화 (새벽 영업 대응 수동 마감, F-30 연계)
+create or replace function public.reset_biz_day() returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff;
+begin
+  s := public._require_staff();
+  update public.stores set biz_reset_at = now() where id = s.store_id;
+  insert into public.pass_log (store_id, action, operator) values (s.store_id, '집계 초기화', s.name);
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 8c. RPC — 대기자 명단 · 좌석 QR 체크인 (F-26)
+-- ---------------------------------------------------------------------
+create or replace function public._seat_count(p_store uuid, p_table int) returns int
+language sql stable as $$
+  select coalesce((select (tb.value->>'seats')::int from public.stores st, jsonb_array_elements(st.tables) tb
+                    where st.id = p_store and (tb.value->>'no')::int = p_table limit 1), 0)
+$$;
+
+-- 손님 셀프 체크인. 좌석 QR(p_table·p_seat)이면 그 자리에 착석, 없으면 대기 등록.
+create or replace function public.checkin_self(p_table int default null, p_seat int default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare m public.members; w public.waitlist; v_seats int; v_pos int;
+begin
+  select * into m from public.members where user_id = auth.uid() and status = 'active';
+  if m.id is null then raise exception '회원 계정으로 로그인해야 합니다.'; end if;
+  if p_table is not null then
+    v_seats := public._seat_count(m.store_id, p_table);
+    if v_seats = 0 then raise exception '존재하지 않는 테이블입니다. (TABLE %)', p_table; end if;
+    if p_seat is null or p_seat < 1 or p_seat > v_seats then raise exception '좌석 번호가 올바르지 않습니다.'; end if;
+    if exists (select 1 from public.waitlist x where x.store_id = m.store_id and x.status = 'seated'
+                 and x.table_no = p_table and x.seat = p_seat and x.member_id <> m.id) then
+      raise exception '이미 다른 손님이 체크인한 좌석입니다. 직원에게 문의해주세요.';
+    end if;
+  end if;
+  select * into w from public.waitlist where store_id = m.store_id and member_id = m.id
+   and status in ('waiting', 'called', 'seated') order by arrived_at desc limit 1 for update;
+  if w.id is null then
+    insert into public.waitlist (store_id, member_id, status, source, table_no, seat, seated_at)
+    values (m.store_id, m.id, case when p_table is null then 'waiting' else 'seated' end, 'qr', p_table, p_seat,
+            case when p_table is null then null else now() end)
+    returning * into w;
+  elsif p_table is not null then
+    update public.waitlist set status = 'seated', table_no = p_table, seat = p_seat, seated_at = now()
+     where id = w.id returning * into w;
+  end if;
+  select count(*) into v_pos from public.waitlist x
+   where x.store_id = m.store_id and x.status in ('waiting', 'called') and x.arrived_at <= w.arrived_at;
+  return jsonb_build_object('id', w.id, 'status', w.status, 'table', w.table_no, 'seat', w.seat,
+                            'position', case when w.status in ('waiting', 'called') then v_pos else null end);
+end $$;
+
+create or replace function public.checkout_self() returns void
+language plpgsql security definer set search_path = public as $$
+declare v_member uuid := public.my_member_id();
+begin
+  if v_member is null then raise exception '회원 계정으로 로그인해야 합니다.'; end if;
+  update public.waitlist set status = 'left', ended_at = now()
+   where member_id = v_member and status in ('waiting', 'called', 'seated');
+end $$;
+
+-- 직원: 대기 추가 (회원 또는 비회원 이름)
+create or replace function public.waitlist_add(p_member uuid default null, p_guest_name text default null, p_note text default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; v_id uuid;
+begin
+  s := public._require_staff();
+  if p_member is null and coalesce(trim(p_guest_name), '') = '' then raise exception '회원을 선택하거나 이름을 입력해주세요.'; end if;
+  if p_member is not null then
+    if not exists (select 1 from public.members where id = p_member and store_id = s.store_id and status = 'active') then
+      raise exception '회원을 찾을 수 없습니다.';
+    end if;
+    if exists (select 1 from public.waitlist where store_id = s.store_id and member_id = p_member and status in ('waiting', 'called', 'seated')) then
+      raise exception '이미 대기 명단(또는 착석 중)에 있는 회원입니다.';
+    end if;
+  end if;
+  insert into public.waitlist (store_id, member_id, guest_name, status, source, note)
+  values (s.store_id, p_member, nullif(trim(coalesce(p_guest_name, '')), ''), 'waiting', 'staff', nullif(trim(coalesce(p_note, '')), ''))
+  returning id into v_id;
+  return v_id;
+end $$;
+
+-- 직원: 상태 변경 (호출·착석·노쇼·취소·퇴장)
+create or replace function public.waitlist_update(p_id uuid, p_status text, p_table int default null, p_seat int default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; w public.waitlist;
+begin
+  s := public._require_staff();
+  select * into w from public.waitlist where id = p_id and store_id = s.store_id for update;
+  if w.id is null then raise exception '대기 항목을 찾을 수 없습니다.'; end if;
+  if p_status not in ('waiting', 'called', 'seated', 'noshow', 'cancelled', 'left') then raise exception '알 수 없는 상태입니다.'; end if;
+  if p_status = 'seated' and p_table is not null and public._seat_count(s.store_id, p_table) = 0 then
+    raise exception '존재하지 않는 테이블입니다.';
+  end if;
+  update public.waitlist set
+    status = p_status,
+    called_at = case when p_status = 'called' then now() else called_at end,
+    seated_at = case when p_status = 'seated' then now() else seated_at end,
+    ended_at = case when p_status in ('noshow', 'cancelled', 'left') then now() else null end,
+    table_no = case when p_status = 'seated' then coalesce(p_table, table_no) else table_no end,
+    seat = case when p_status = 'seated' then coalesce(p_seat, seat) else seat end
+  where id = w.id;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 8d. 감사 로그 트리거 — 직원의 설정·회원·게임·직원 변경 (재화 이동은 ledger가 원본)
+-- ---------------------------------------------------------------------
+create or replace function public._audit() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_old jsonb := case when tg_op = 'INSERT' then null else to_jsonb(old) end;
+  v_new jsonb := case when tg_op = 'DELETE' then null else to_jsonb(new) end;
+  v_store uuid; v_actor text; v_actor_id uuid := auth.uid(); v_detail jsonb; v_target text;
+begin
+  if current_setting('allinone.reset', true) = 'on' then return coalesce(new, old); end if;
+  v_store := case when tg_table_name = 'stores' then coalesce((v_new->>'id')::uuid, (v_old->>'id')::uuid)
+                  else coalesce((v_new->>'store_id')::uuid, (v_old->>'store_id')::uuid) end;
+  if v_store is null then return coalesce(new, old); end if;
+  select name into v_actor from public.staff where user_id = v_actor_id;
+  if tg_op = 'UPDATE' then
+    select coalesce(jsonb_object_agg(k.key,
+             case when k.key in ('snapshot', 'data', 'tables', 'results') then jsonb_build_array(null, '(변경)')
+                  else jsonb_build_array(v_old->k.key, v_new->k.key) end), '{}'::jsonb)
+      into v_detail
+      from jsonb_object_keys(v_new) as k(key)
+     where v_old->k.key is distinct from v_new->k.key and k.key not in ('updated_at', 'paused_at', 'paused_total_ms', 'started_at');
+    if v_detail = '{}'::jsonb then return new; end if;
+  elsif tg_op = 'INSERT' then
+    v_detail := v_new - 'snapshot' - 'data' - 'results';
+  else
+    v_detail := v_old - 'snapshot' - 'data' - 'results';
+  end if;
+  v_target := coalesce(v_new->>'id', v_old->>'id');
+  insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
+  values (v_store, v_actor_id,
+          coalesce(v_actor, case when v_actor_id is null then '시스템' else '회원' end),
+          tg_table_name || '.' || lower(tg_op), tg_table_name, v_target, v_detail);
+  return coalesce(new, old);
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['members', 'staff', 'stores', 'game_sets', 'games', 'pass_types', 'passes', 'seasons', 'events', 'waitlist'] loop
+    execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
+    execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public._audit()', t);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 8e. 매장 기본값 · console_state(jsonb) → 테이블 마이그레이션
+-- ---------------------------------------------------------------------
+create or replace function public._ensure_store_defaults(p_store uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.pass_types where store_id = p_store) then
+    insert into public.pass_types (store_id, name, valid_days, color, sort) values
+      (p_store, '1,000P', 30, '#57B6F2', 0), (p_store, '10,000P', 30, '#E9BB56', 1), (p_store, '하이롤러', 60, '#A98BF5', 2);
+  end if;
+  if not exists (select 1 from public.seasons where store_id = p_store and status in ('open', 'closed')) then
+    insert into public.seasons (store_id, name)
+    values (p_store, '시즌 ' || ((select count(*) from public.seasons where store_id = p_store) + 1));
+  end if;
+end $$;
+
+do $$
+declare cs record; v jsonb; tmap jsonb; new_id uuid; mid uuid;
+begin
+  for cs in select store_id, state from public.console_state where state <> '{}'::jsonb loop
+    perform set_config('allinone.reset', 'on', true);
+    tmap := '{}'::jsonb;
+    if not exists (select 1 from public.pass_types where store_id = cs.store_id) then
+      for v in select value from jsonb_array_elements(coalesce(cs.state->'passTypes', '[]'::jsonb)) loop
+        insert into public.pass_types (store_id, name, valid_days, color)
+        values (cs.store_id, coalesce(v->>'name', '이용권'), coalesce((v->>'validDays')::int, 30), coalesce(v->>'color', '#57B6F2'))
+        returning id into new_id;
+        tmap := tmap || jsonb_build_object(coalesce(v->>'id', ''), new_id);
+      end loop;
+      for v in select value from jsonb_array_elements(coalesce(cs.state->'passes', '[]'::jsonb)) loop
+        begin
+          mid := (v->>'memberId')::uuid;
+          if (tmap->>(v->>'typeId')) is not null and exists (select 1 from public.members where id = mid) then
+            insert into public.passes (store_id, type_id, member_id, issued_at, expires_at, status, used_at)
+            values (cs.store_id, (tmap->>(v->>'typeId'))::uuid, mid,
+                    to_timestamp(((v->>'issuedAt')::bigint) / 1000.0), to_timestamp(((v->>'expiresAt')::bigint) / 1000.0),
+                    coalesce(v->>'status', 'unused'),
+                    case when v->>'usedAt' is not null then to_timestamp(((v->>'usedAt')::bigint) / 1000.0) end);
+          end if;
+        exception when others then null;
+        end;
+      end loop;
+    end if;
+    if not exists (select 1 from public.seasons where store_id = cs.store_id) then
+      for v in select value from jsonb_array_elements(coalesce(cs.state->'seasons', '[]'::jsonb)) loop
+        insert into public.seasons (store_id, name, started_at, status, closed_at, results)
+        values (cs.store_id, coalesce(v->>'name', '시즌'),
+                coalesce(to_timestamp(((v->>'startedAt')::bigint) / 1000.0), now()),
+                coalesce(v->>'status', 'open'),
+                case when v->>'closedAt' is not null then to_timestamp(((v->>'closedAt')::bigint) / 1000.0) end,
+                v->'results');
+      end loop;
+    end if;
+    for v in select value from jsonb_array_elements(coalesce(cs.state->'rpLog', '[]'::jsonb)) loop
+      begin
+        insert into public.rp_log (store_id, ts, member_id, delta, reason, operator)
+        values (cs.store_id, to_timestamp(((v->>'ts')::bigint) / 1000.0), (v->>'memberId')::uuid, (v->>'delta')::bigint, coalesce(v->>'reason', ''), v->>'operator');
+      exception when others then null;
+      end;
+    end loop;
+    if cs.state->>'bizResetAt' is not null then
+      update public.stores set biz_reset_at = to_timestamp(((cs.state->>'bizResetAt')::bigint) / 1000.0) where id = cs.store_id;
+    end if;
+    update public.console_state set state = '{}'::jsonb, updated_at = now() where store_id = cs.store_id;
+    perform set_config('allinone.reset', 'off', true);
+  end loop;
+  perform public._ensure_store_defaults(id) from public.stores;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 9. 공개 뷰 (익명 접근용 — 개인정보·잔액 제외)
 -- ---------------------------------------------------------------------
 create or replace view public.ranking_public as
@@ -932,7 +1390,11 @@ create or replace view public.ranking_public as
     from public.members where status = 'active' and rp > 0;
 
 create or replace view public.seasons_public as
-  select store_id, coalesce(state->'seasons', '[]'::jsonb) as seasons from public.console_state;
+  select store_id,
+         coalesce(jsonb_agg(jsonb_build_object('id', id, 'name', name, 'status', status,
+                    'startedAt', (extract(epoch from started_at) * 1000)::bigint,
+                    'closedAt', (extract(epoch from closed_at) * 1000)::bigint) order by started_at desc), '[]'::jsonb) as seasons
+    from public.seasons group by store_id;
 
 -- ---------------------------------------------------------------------
 -- 10. RLS
@@ -953,7 +1415,7 @@ drop policy if exists stores_select on public.stores;
 create policy stores_select on public.stores for select using (true);
 drop policy if exists stores_update on public.stores;
 create policy stores_update on public.stores for update
-  using (id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'))
+  using (id = public.staff_store_id())
   with check (id = public.staff_store_id());
 
 drop policy if exists console_state_all on public.console_state;
@@ -978,7 +1440,7 @@ create policy members_select on public.members for select
   using (store_id = public.staff_store_id() or user_id = auth.uid());
 drop policy if exists members_update on public.members;
 create policy members_update on public.members for update
-  using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'))
+  using (store_id = public.staff_store_id())
   with check (store_id = public.staff_store_id());
 
 drop policy if exists wallets_select on public.wallets;
@@ -1017,6 +1479,37 @@ drop policy if exists events_write on public.events;
 create policy events_write on public.events for all
   using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
 
+-- v2 테이블
+alter table public.pass_types enable row level security;
+alter table public.passes enable row level security;
+alter table public.pass_log enable row level security;
+alter table public.seasons enable row level security;
+alter table public.rp_log enable row level security;
+alter table public.waitlist enable row level security;
+alter table public.audit_log enable row level security;
+
+drop policy if exists pass_types_all on public.pass_types;
+create policy pass_types_all on public.pass_types for all
+  using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
+drop policy if exists pass_types_member_select on public.pass_types;
+create policy pass_types_member_select on public.pass_types for select
+  using (exists (select 1 from public.passes p where p.type_id = pass_types.id and p.member_id = public.my_member_id()));
+drop policy if exists passes_select on public.passes;
+create policy passes_select on public.passes for select
+  using (store_id = public.staff_store_id() or member_id = public.my_member_id());
+drop policy if exists pass_log_select on public.pass_log;
+create policy pass_log_select on public.pass_log for select using (store_id = public.staff_store_id());
+drop policy if exists seasons_select on public.seasons;
+create policy seasons_select on public.seasons for select using (true);
+drop policy if exists rp_log_select on public.rp_log;
+create policy rp_log_select on public.rp_log for select
+  using (store_id = public.staff_store_id() or member_id = public.my_member_id());
+drop policy if exists waitlist_select on public.waitlist;
+create policy waitlist_select on public.waitlist for select
+  using (store_id = public.staff_store_id() or member_id = public.my_member_id());
+drop policy if exists audit_log_select on public.audit_log;
+create policy audit_log_select on public.audit_log for select using (store_id = public.staff_store_id());
+
 -- ---------------------------------------------------------------------
 -- 11. 실행 권한 — 내부 함수는 API에서 호출 불가
 -- ---------------------------------------------------------------------
@@ -1025,6 +1518,8 @@ revoke all on function public._buyin(uuid, uuid, text, text, text, text) from pu
 revoke all on function public._require_staff(text[]) from public, anon, authenticated;
 revoke all on function public._default_game_set() from public, anon, authenticated;
 revoke all on function public.next_member_no(uuid) from public, anon, authenticated;
+revoke all on function public._ensure_store_defaults(uuid) from public, anon, authenticated;
+revoke all on function public._seat_count(uuid, int) from public, anon, authenticated;
 grant select on public.ranking_public to anon, authenticated;
 grant select on public.seasons_public to anon, authenticated;
 
@@ -1040,12 +1535,17 @@ alter table public.game_entries replica identity full;
 alter table public.buyin_events replica identity full;
 alter table public.events replica identity full;
 alter table public.wallets replica identity full;
+alter table public.pass_types replica identity full;
+alter table public.passes replica identity full;
+alter table public.seasons replica identity full;
+alter table public.waitlist replica identity full;
 
 do $$
 declare t text;
 begin
   foreach t in array array['stores', 'console_state', 'staff', 'members', 'wallets', 'ledger',
-                           'game_sets', 'games', 'game_entries', 'buyin_events', 'events'] loop
+                           'game_sets', 'games', 'game_entries', 'buyin_events', 'events',
+                           'pass_types', 'passes', 'pass_log', 'seasons', 'rp_log', 'waitlist', 'audit_log'] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
     exception when duplicate_object then null;

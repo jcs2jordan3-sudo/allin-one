@@ -12,6 +12,8 @@ import JoinModal from '../components/JoinModal'
 import GameSetEditor from '../components/GameSetEditor'
 import EndGameModal from '../components/EndGameModal'
 import GameEditModal from '../components/GameEditModal'
+import WaitlistModal from '../components/WaitlistModal'
+import DateRangePicker from '../components/DateRangePicker'
 import { absUrl, appUrl } from '../lib/url'
 
 export default function DashboardTab() {
@@ -20,6 +22,8 @@ export default function DashboardTab() {
   const playingCount = selPlayingCount(st)
   const running = st.games.filter((g) => g.status !== 'ended')
   const ended = st.games.filter((g) => g.status === 'ended')
+  const waitingCount = st.waitlist.filter((w) => w.status === 'waiting' || w.status === 'called').length
+  const seatedCount = st.waitlist.filter((w) => w.status === 'seated').length
 
   const [waitingOpen, setWaitingOpen] = useState(false)
   const [tablesOpen, setTablesOpen] = useState(false)
@@ -31,9 +35,10 @@ export default function DashboardTab() {
   const records = useMemo(
     () =>
       ended
+        .filter((g) => (g.endedAt ?? g.startedAt) >= st.historyRange.from && (g.endedAt ?? g.startedAt) <= st.historyRange.to)
         .filter((g) => !q || g.name.includes(q) || g.gameSetName.includes(q))
         .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)),
-    [ended, q],
+    [ended, q, st.historyRange],
   )
 
   const share = async (g: Game) => {
@@ -51,7 +56,7 @@ export default function DashboardTab() {
     <div className="space-y-8">
       {/* 벤토 타일 — 방문자·게임 셋·빠른 작업 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <BentoTile label="대기 중" value={st.waitingCount} onEdit={() => setWaitingOpen(true)} />
+        <BentoTile label="대기 중" value={waitingCount} sub={`착석 ${seatedCount}`} onEdit={() => setWaitingOpen(true)} editLabel="명단" />
         <BentoTile label="게임 중" value={playingCount} accent="mint" />
         <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={() => setSetsOpen(true)} />
         <Card className="p-5 flex flex-col justify-between gap-3">
@@ -93,6 +98,7 @@ export default function DashboardTab() {
         >
           게임 기록
         </SectionTitle>
+        <div className="mb-3"><DateRangePicker value={st.historyRange} onChange={(r) => st.setHistoryRange(r)} /></div>
         {records.length === 0 ? (
           <Empty>게임 기록이 없습니다.</Empty>
         ) : (
@@ -124,7 +130,7 @@ export default function DashboardTab() {
         )}
       </section>
 
-      <WaitingModal open={waitingOpen} onClose={() => setWaitingOpen(false)} />
+      <WaitlistModal open={waitingOpen} onClose={() => setWaitingOpen(false)} />
       <TablesModal open={tablesOpen} onClose={() => setTablesOpen(false)} />
       <GameSetsModal open={setsOpen} onClose={() => setSetsOpen(false)} />
       <CreateGameModal open={createOpen} onClose={() => setCreateOpen(false)} />
@@ -137,23 +143,30 @@ export default function DashboardTab() {
 function BentoTile({
   label,
   value,
+  sub,
   accent,
   onEdit,
+  editLabel = '편집',
 }: {
   label: string
   value: number
+  sub?: string
   accent?: 'mint'
   onEdit?: () => void
+  editLabel?: string
 }) {
   return (
     <Card className="p-5 flex flex-col justify-between gap-3 min-h-28">
       <div className="flex items-center justify-between">
         <span className="text-[12px] font-semibold tracking-widest text-faint uppercase">{label}</span>
         {onEdit && (
-          <button onClick={onEdit} className="text-[13px] text-mut hover:text-mint transition-colors">편집</button>
+          <button onClick={onEdit} className="text-[13px] text-mut hover:text-mint transition-colors">{editLabel}</button>
         )}
       </div>
-      <div className={`text-4xl font-extrabold num leading-none ${accent === 'mint' ? 'text-mint' : ''}`}>{value}</div>
+      <div className="flex items-baseline gap-2">
+        <div className={`text-4xl font-extrabold num leading-none ${accent === 'mint' ? 'text-mint' : ''}`}>{value}</div>
+        {sub && <span className="text-[13px] text-mut num">{sub}</span>}
+      </div>
     </Card>
   )
 }
@@ -346,23 +359,6 @@ function BalancingModal({ game: g, open, onClose }: { game: Game; open: boolean;
           <div className="mt-4 text-sm text-mint">✓ 테이블 인원이 균형 상태입니다.</div>
         )}
       </div>
-    </Modal>
-  )
-}
-
-// ── 방문자 편집 ───────────────────────────────────────────────────────────
-
-function WaitingModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const waitingCount = useStore((s) => s.waitingCount)
-  const setWaiting = useStore((s) => s.setWaiting)
-  return (
-    <Modal open={open} onClose={onClose} title="대기 인원 편집">
-      <div className="flex items-center justify-center gap-5 py-2">
-        <Btn onClick={() => setWaiting(waitingCount - 1)} aria-label="감소">−</Btn>
-        <span className="text-3xl font-bold num w-16 text-center">{waitingCount}</span>
-        <Btn onClick={() => setWaiting(waitingCount + 1)} aria-label="증가">+</Btn>
-      </div>
-      <p className="text-[13px] text-mut text-center">게임 중 인원은 진행 중인 게임에서 자동 집계됩니다.</p>
     </Modal>
   )
 }

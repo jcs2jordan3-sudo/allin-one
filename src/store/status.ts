@@ -5,11 +5,11 @@ import { hasSupabase } from '../lib/supabase'
 
 export const useReady = create<{ ready: boolean }>(() => ({ ready: false }))
 
-// ── 동기화 상태 (헤더 배지용) ─────────────────────────────────────────────
+// ── 동기화 상태 (헤더 배지·오프라인 배너용) ───────────────────────────────
 
-export type SyncStatus = 'local' | 'connecting' | 'synced' | 'error'
+export type SyncStatus = 'local' | 'connecting' | 'synced' | 'error' | 'offline'
 export const useSyncStatus = create<{ status: SyncStatus }>(() => ({
-  status: hasSupabase ? 'connecting' : 'local',
+  status: hasSupabase ? (typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'connecting') : 'local',
 }))
 
 // ── 로컬 모드 세션 잠금 (PIN, 브라우저 세션 단위) ─────────────────────────

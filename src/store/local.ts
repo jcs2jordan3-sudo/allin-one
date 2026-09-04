@@ -5,15 +5,15 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Currency, Game, GameSet, Member, PassType } from '../types'
 import { CURRENCY_UNIT } from '../types'
 import { gameElapsedMs, isRegClosed, levelAt, levelStartMs } from '../lib/time'
-import { consoleActions } from './console'
-import { seedState, uid } from './seed'
+import { localOnlyActions } from './console'
+import { defaultLocalExtras, seedState, uid } from './seed'
 import { selTotalChips } from './selectors'
 import { useReady } from './status'
-import type { Actions, ConsoleActionKey, GetState, SetState, Store } from './types'
+import type { Actions, GetState, LocalOnlyKey, SetState, Store } from './types'
 
 const STORE_KEY = 'allinone-store-v1'
 
-function coreActions(set: SetState, get: GetState): Omit<Actions, ConsoleActionKey> {
+function coreActions(set: SetState, get: GetState): Omit<Actions, LocalOnlyKey> {
   return {
     async transferToMember(memberId, c, amount, reason, gameId) {
       const st = get()
@@ -93,10 +93,17 @@ function coreActions(set: SetState, get: GetState): Omit<Actions, ConsoleActionK
       const st = get()
       const m = st.members.find((x) => x.id === id)
       if (!m) return '회원을 찾을 수 없습니다.'
+      if (m.status === 'left') return null
       for (const c of ['P', 'S', 'V'] as Currency[]) {
         if (m.balances[c] > 0) await get().reclaimFromMember(id, c, m.balances[c], '회원 탈퇴 잔액 환수')
       }
-      set({ members: get().members.map((x) => (x.id === id ? { ...x, status: 'left' } : x)) })
+      // 개인정보 익명화 — 원장 행은 익명 ID로 보존 (기획서 §6-9)
+      set({
+        members: get().members.map((x) =>
+          x.id === id ? { ...x, status: 'left', nickname: `탈퇴회원 ${x.no}`, phone: undefined, realName: undefined, memo: undefined, emoji: '👤', color: '#64707f', linked: false } : x,
+        ),
+        waitlist: get().waitlist.map((w) => (w.memberId === id && ['waiting', 'called', 'seated'].includes(w.status) ? { ...w, status: 'left' as const, endedAt: Date.now() } : w)),
+      })
       return null
     },
 
@@ -387,7 +394,8 @@ function coreActions(set: SetState, get: GetState): Omit<Actions, ConsoleActionK
         members: [], games: [], ledger: [], events: [], passes: [], passLog: [],
         wallet: { P: 0, S: 0, V: 0 },
         seasons: [{ id: uid(), name: '시즌 1', startedAt: Date.now(), status: 'open' as const }],
-        waitingCount: 0,
+        waitlist: [],
+        auditLog: [],
         bizResetAt: Date.now(),
         lockPin: keepPin,
       })
@@ -402,6 +410,15 @@ function coreActions(set: SetState, get: GetState): Omit<Actions, ConsoleActionK
     async saveStoreName(name) {
       if (!name.trim()) return '매장 이름을 입력해주세요.'
       set({ storeName: name.trim() })
+      return null
+    },
+
+    async setLedgerRange(range) {
+      set({ ledgerRange: range })
+      return null
+    },
+    async setHistoryRange(range) {
+      set({ historyRange: range })
       return null
     },
 
@@ -450,12 +467,12 @@ export function createLocalStore() {
     persist(
       (set, get) => ({
         ...seedState(),
-        ...consoleActions(set, get),
+        ...localOnlyActions(set, get),
         ...coreActions(set, get),
       }),
       {
         name: STORE_KEY,
-        version: 4,
+        version: 5,
         storage: createJSONStorage(() => localStorage),
         migrate: (persisted: unknown) => {
           const state = persisted as Record<string, unknown> & { members?: Member[]; passTypes?: PassType[]; games?: Game[] }
@@ -472,6 +489,14 @@ export function createLocalStore() {
           if (state && !state.rpLog) state.rpLog = []
           if (state?.games) state.games = state.games.map((g) => (g.joinCode ? g : { ...g, joinCode: uid() }))
           if (state && state.storeId === undefined) state.storeId = null
+          // v5: 대기 인원 카운트 → 대기자 명단, 감사 로그·조회 기간 추가
+          if (state) {
+            const extras = defaultLocalExtras()
+            for (const k of ['waitlist', 'auditLog', 'ledgerRange', 'historyRange'] as const) {
+              if (state[k] === undefined) (state as Record<string, unknown>)[k] = extras[k]
+            }
+            delete (state as Record<string, unknown>).waitingCount
+          }
           return state as never
         },
       },

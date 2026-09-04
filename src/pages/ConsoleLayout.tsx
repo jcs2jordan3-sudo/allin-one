@@ -4,12 +4,14 @@ import { hasSupabase } from '../lib/supabase'
 import { signOut, useAuth } from '../auth'
 import { STAFF_ROLE_LABEL } from '../types'
 import { appUrl } from '../lib/url'
+import OfflineBanner from '../components/OfflineBanner'
 
 const SYNC_META: Record<SyncStatus, { label: string; dot: string; text: string }> = {
   local: { label: '로컬 모드', dot: 'bg-faint', text: 'text-mut' },
   connecting: { label: '연결 중', dot: 'bg-gold animate-pulse', text: 'text-gold' },
   synced: { label: '클라우드 동기화', dot: 'bg-mint', text: 'text-mint' },
   error: { label: '동기화 오류', dot: 'bg-rose', text: 'text-rose' },
+  offline: { label: '오프라인', dot: 'bg-rose animate-pulse', text: 'text-rose' },
 }
 
 const tabs = [
@@ -49,6 +51,7 @@ export default function ConsoleLayout() {
 
   return (
     <div className="min-h-screen">
+      <OfflineBanner />
       <header className="glass-panel border-b border-line !rounded-none sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">

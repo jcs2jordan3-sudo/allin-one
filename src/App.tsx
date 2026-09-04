@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { hasSupabase } from './lib/supabase'
 import { useAuth } from './auth'
@@ -12,13 +12,20 @@ import RankingTab from './pages/RankingTab'
 import EventsTab from './pages/EventsTab'
 import AdminTab from './pages/AdminTab'
 import GameDetail from './pages/GameDetail'
-import DisplayBoard from './pages/DisplayBoard'
-import PublicRanking from './pages/PublicRanking'
-import QrSheet from './pages/QrSheet'
-import StaffLogin from './pages/StaffLogin'
-import JoinPage from './player/JoinPage'
-import MePage from './player/MePage'
-import GameJoinPage from './player/GameJoinPage'
+
+// 공개·플레이어·인증 페이지는 필요할 때만 로드 (콘솔 번들 축소)
+const DisplayBoard = lazy(() => import('./pages/DisplayBoard'))
+const PublicRanking = lazy(() => import('./pages/PublicRanking'))
+const QrSheet = lazy(() => import('./pages/QrSheet'))
+const StaffLogin = lazy(() => import('./pages/StaffLogin'))
+const JoinPage = lazy(() => import('./player/JoinPage'))
+const MePage = lazy(() => import('./player/MePage'))
+const GameJoinPage = lazy(() => import('./player/GameJoinPage'))
+const CheckinPage = lazy(() => import('./player/CheckinPage'))
+const ResetRequestPage = lazy(() => import('./pages/ResetPage').then((m) => ({ default: m.ResetRequestPage })))
+const ResetPasswordPage = lazy(() => import('./pages/ResetPage').then((m) => ({ default: m.ResetPasswordPage })))
+
+const Lazy = ({ children }: { children: ReactNode }) => <Suspense fallback={<Splash text="불러오는 중…" />}>{children}</Suspense>
 
 // ── 콘솔 게이트 ───────────────────────────────────────────────────────────
 // 로컬 모드: PIN 간편 잠금 / 클라우드 모드: 직원 계정 로그인
@@ -49,7 +56,7 @@ function StaffGate({ children }: { children: ReactNode }) {
   }, [role])
 
   if (status === 'loading') return <Splash text="세션 확인 중…" />
-  if (role.kind !== 'staff') return <StaffLogin />
+  if (role.kind !== 'staff') return <Lazy><StaffLogin /></Lazy>
   if (loadError) return <Splash text="매장 데이터를 불러오지 못했습니다" sub={loadError} />
   if (!ready) return <Splash text="매장 데이터 불러오는 중…" />
   return <>{children}</>
@@ -71,7 +78,7 @@ function PublicScope({ children }: { children: ReactNode }) {
 
   if (loadError) return <Splash text="데이터를 불러오지 못했습니다" sub={loadError} />
   if (!ready) return <Splash text="불러오는 중…" />
-  return <>{children}</>
+  return <Lazy>{children}</Lazy>
 }
 
 function LockScreen({ pin }: { pin: string }) {
@@ -132,9 +139,13 @@ export default function App() {
       <Route path="/rank" element={<PublicScope><PublicRanking /></PublicScope>} />
       <Route path="/qr/:tableNo" element={<PublicScope><QrSheet /></PublicScope>} />
       {/* 플레이어(회원) 페이지 — 클라우드 모드 */}
-      <Route path="/join" element={<JoinPage />} />
-      <Route path="/me" element={<MePage />} />
-      <Route path="/g/:code" element={<GameJoinPage />} />
+      <Route path="/join" element={<Lazy><JoinPage /></Lazy>} />
+      <Route path="/me" element={<Lazy><MePage /></Lazy>} />
+      <Route path="/g/:code" element={<Lazy><GameJoinPage /></Lazy>} />
+      <Route path="/checkin" element={<Lazy><CheckinPage /></Lazy>} />
+      {/* 비밀번호 재설정 */}
+      <Route path="/reset" element={<Lazy><ResetRequestPage /></Lazy>} />
+      <Route path="/reset-password" element={<Lazy><ResetPasswordPage /></Lazy>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

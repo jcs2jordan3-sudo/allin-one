@@ -6,6 +6,7 @@ import { fmtDateTime, fmtNum, maskName } from '../lib/format'
 import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle, Segmented } from '../components/ui'
 import Avatar from '../components/Avatar'
 import { SignupQrModal } from '../components/SignupQr'
+import DateRangePicker from '../components/DateRangePicker'
 
 const PAGE_SIZE = 10
 
@@ -28,12 +29,14 @@ export default function PointsTab() {
   }, [st.members, includeLeft])
 
   const rows = useMemo(() => {
-    return st.ledger.filter((l) => {
-      if (filter === 'hq') return l.from === 'hq' || l.to === 'hq'
-      if (filter === 'player') return l.from !== 'hq' && l.to !== 'hq'
-      return true
-    })
-  }, [st.ledger, filter])
+    return st.ledger
+      .filter((l) => l.ts >= st.ledgerRange.from && l.ts <= st.ledgerRange.to)
+      .filter((l) => {
+        if (filter === 'hq') return l.from === 'hq' || l.to === 'hq'
+        if (filter === 'player') return l.from !== 'hq' && l.to !== 'hq'
+        return true
+      })
+  }, [st.ledger, filter, st.ledgerRange])
 
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -120,6 +123,10 @@ export default function PointsTab() {
         >
           포인트 거래내역 <span className="text-[13px] text-mut font-normal ml-1">증감은 지점 잔액 기준</span>
         </SectionTitle>
+        <div className="mb-3 flex items-center gap-3 flex-wrap">
+          <DateRangePicker value={st.ledgerRange} onChange={(r) => { st.setLedgerRange(r); setPage(1) }} />
+          <span className="text-[13px] text-mut num">{rows.length}건</span>
+        </div>
         {pageRows.length === 0 ? (
           <Empty>거래내역이 없습니다.</Empty>
         ) : (

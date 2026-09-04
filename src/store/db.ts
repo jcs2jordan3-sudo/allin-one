@@ -5,46 +5,41 @@
 import { create } from 'zustand'
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { CLIENT_ID } from '../lib/supabase'
-import { consoleActions } from './console'
-import { defaultConsoleState, emptyState, uid } from './seed'
+import { emptyState } from './seed'
 import { useReady, useSyncStatus } from './status'
-import { CONSOLE_KEYS, type Actions, type ConsoleActionKey, type ConsoleState, type SetState, type Store } from './types'
+import type { Actions, LocalOnlyKey, Store } from './types'
 import {
-  errMsg, gameSetToData, rowToEvent, rowToGame, rowToGameSet, rowToLedger, rowToMember, rowToPublicMember,
-  rowToStaff, walletsByOwner,
+  errMsg, gameSetToData, rowToAudit, rowToEvent, rowToGame, rowToGameSet, rowToLedger, rowToMember, rowToPass,
+  rowToPassLog, rowToPassType, rowToPublicMember, rowToRpLog, rowToSeason, rowToStaff, rowToWait, walletsByOwner,
 } from './map'
 
 type Scope = 'none' | 'public' | 'staff'
-type Group = 'store' | 'console' | 'members' | 'ledger' | 'gameSets' | 'games' | 'staff' | 'events' | 'ranking'
+type Group = 'store' | 'members' | 'ledger' | 'gameSets' | 'games' | 'staff' | 'events' | 'ranking' | 'passes' | 'seasons' | 'waitlist' | 'audit'
 type Row = Record<string, unknown>
 
-const ALL_STAFF_GROUPS: Group[] = ['store', 'console', 'members', 'ledger', 'gameSets', 'games', 'staff', 'events']
+const ALL_STAFF_GROUPS: Group[] = ['store', 'members', 'ledger', 'gameSets', 'games', 'staff', 'events', 'passes', 'seasons', 'waitlist', 'audit']
 const PUBLIC_GROUPS: Group[] = ['store', 'games', 'events', 'ranking']
+const GAME_SELECT = '*, game_entries(*), buyin_events(*)'
+const OFFLINE_MSG = '오프라인 상태입니다. 네트워크 연결 후 다시 시도하세요.'
+const iso = (ms: number) => new Date(ms).toISOString()
 
 export function createDbStore(sb: SupabaseClient) {
   let scope: Scope = 'none'
   let storeId: string | null = null
   let channel: RealtimeChannel | null = null
-  let saveTimer: ReturnType<typeof setTimeout> | undefined
-  let applyingRemote = false
   let loadSeq = 0
 
   // ── 서버 → 스토어 읽기 ────────────────────────────────────────────────
 
   const fetchers: Record<Group, () => Promise<void>> = {
     async store() {
-      const { data, error } = await sb.from('stores').select('id, name, tables').eq('id', storeId!).single()
+      const { data, error } = await sb.from('stores').select('id, name, tables, biz_reset_at').eq('id', storeId!).single()
       if (error) throw error
-      store.setState({ storeName: String(data.name), tables: (data.tables as Store['tables']) ?? [] })
-    },
-    async console() {
-      const { data, error } = await sb.from('console_state').select('state').eq('store_id', storeId!).maybeSingle()
-      if (error) throw error
-      const remote = (data?.state ?? {}) as Partial<ConsoleState>
-      const merged: ConsoleState = { ...defaultConsoleState(), ...remote }
-      applyingRemote = true
-      try { store.setState(merged) } finally { applyingRemote = false }
-      if (!remote.seasons) void saveConsole() // 첫 연결: 기본값을 서버에 고정
+      store.setState({
+        storeName: String(data.name),
+        tables: (data.tables as Store['tables']) ?? [],
+        bizResetAt: data.biz_reset_at ? new Date(String(data.biz_reset_at)).getTime() : Date.now(),
+      })
     },
     async members() {
       const [m, w] = await Promise.all([
@@ -60,7 +55,9 @@ export function createDbStore(sb: SupabaseClient) {
       })
     },
     async ledger() {
-      const { data, error } = await sb.from('ledger').select('*').eq('store_id', storeId!).order('seq', { ascending: false }).limit(1000)
+      const { from, to } = store.getState().ledgerRange
+      const { data, error } = await sb.from('ledger').select('*').eq('store_id', storeId!)
+        .gte('ts', iso(from)).lte('ts', iso(to)).order('seq', { ascending: false }).limit(2000)
       if (error) throw error
       store.setState({ ledger: (data as Row[]).map(rowToLedger) })
     },
@@ -70,14 +67,16 @@ export function createDbStore(sb: SupabaseClient) {
       store.setState({ gameSets: (data as Row[]).map(rowToGameSet) })
     },
     async games() {
-      const { data, error } = await sb
-        .from('games')
-        .select('*, game_entries(*), buyin_events(*)')
-        .eq('store_id', storeId!)
-        .order('created_at', { ascending: false })
-        .limit(300)
-      if (error) throw error
-      store.setState({ games: (data as Row[]).map(rowToGame) })
+      // 진행·예약 중인 게임은 항상, 종료 게임은 조회 기간 내만 (조회 상한 대응)
+      const { from, to } = store.getState().historyRange
+      const [live, ended] = await Promise.all([
+        sb.from('games').select(GAME_SELECT).eq('store_id', storeId!).neq('status', 'ended').order('created_at', { ascending: false }),
+        sb.from('games').select(GAME_SELECT).eq('store_id', storeId!).eq('status', 'ended')
+          .gte('ended_at', iso(from)).lte('ended_at', iso(to)).order('ended_at', { ascending: false }).limit(500),
+      ])
+      if (live.error) throw live.error
+      if (ended.error) throw ended.error
+      store.setState({ games: [...(live.data as Row[]), ...(ended.data as Row[])].map(rowToGame) })
     },
     async staff() {
       const { data, error } = await sb.from('staff').select('*').eq('store_id', storeId!).order('created_at')
@@ -92,13 +91,51 @@ export function createDbStore(sb: SupabaseClient) {
     async ranking() {
       const [r, s] = await Promise.all([
         sb.from('ranking_public').select('*').eq('store_id', storeId!).order('rp', { ascending: false }),
-        sb.from('seasons_public').select('seasons').eq('store_id', storeId!).maybeSingle(),
+        sb.from('seasons').select('id, name, started_at, status, closed_at').eq('store_id', storeId!).order('started_at', { ascending: false }),
       ])
       if (r.error) throw r.error
       store.setState({
         members: (r.data as Row[]).map(rowToPublicMember),
-        seasons: ((s.data?.seasons as Store['seasons'] | undefined) ?? []),
+        seasons: ((s.data ?? []) as Row[]).map(rowToSeason),
       })
+    },
+    async passes() {
+      const [t, p, l] = await Promise.all([
+        sb.from('pass_types').select('*').eq('store_id', storeId!).order('sort').order('created_at'),
+        sb.from('passes').select('*').eq('store_id', storeId!).order('issued_at', { ascending: false }).limit(2000),
+        sb.from('pass_log').select('*').eq('store_id', storeId!).order('ts', { ascending: false }).limit(500),
+      ])
+      if (t.error) throw t.error
+      if (p.error) throw p.error
+      if (l.error) throw l.error
+      store.setState({
+        passTypes: (t.data as Row[]).map(rowToPassType),
+        passes: (p.data as Row[]).map(rowToPass),
+        passLog: (l.data as Row[]).map(rowToPassLog),
+      })
+    },
+    async seasons() {
+      const [s, r] = await Promise.all([
+        sb.from('seasons').select('*').eq('store_id', storeId!).order('started_at', { ascending: false }),
+        sb.from('rp_log').select('*').eq('store_id', storeId!).order('ts', { ascending: false }).limit(500),
+      ])
+      if (s.error) throw s.error
+      if (r.error) throw r.error
+      store.setState({ seasons: (s.data as Row[]).map(rowToSeason), rpLog: (r.data as Row[]).map(rowToRpLog) })
+    },
+    async waitlist() {
+      // 활성 항목 전부 + 최근 24시간 내 종료 항목 (노쇼·퇴장 이력)
+      const since = iso(Date.now() - 24 * 3_600_000)
+      const { data, error } = await sb.from('waitlist').select('*').eq('store_id', storeId!)
+        .or(`status.in.(waiting,called,seated),ended_at.gte.${since}`)
+        .order('arrived_at')
+      if (error) throw error
+      store.setState({ waitlist: (data as Row[]).map(rowToWait) })
+    },
+    async audit() {
+      const { data, error } = await sb.from('audit_log').select('*').eq('store_id', storeId!).order('ts', { ascending: false }).limit(500)
+      if (error) throw error
+      store.setState({ auditLog: (data as Row[]).map(rowToAudit) })
     },
   }
 
@@ -107,9 +144,10 @@ export function createDbStore(sb: SupabaseClient) {
     const allowed = scope === 'staff' ? ALL_STAFF_GROUPS : PUBLIC_GROUPS
     try {
       await Promise.all(groups.filter((g) => allowed.includes(g)).map((g) => fetchers[g]()))
+      if (useSyncStatus.getState().status === 'error') useSyncStatus.setState({ status: 'synced' })
     } catch (e) {
       console.warn('[allinone] refresh 실패', e)
-      useSyncStatus.setState({ status: 'error' })
+      useSyncStatus.setState({ status: navigator.onLine ? 'error' : 'offline' })
     }
   }
 
@@ -119,36 +157,12 @@ export function createDbStore(sb: SupabaseClient) {
     timers.set(g, setTimeout(() => { void refresh(g) }, 150))
   }
 
-  // ── 콘솔 전용 상태 저장 (console_state jsonb) ─────────────────────────
-
-  const scheduleConsoleSave = () => {
-    if (applyingRemote || scope !== 'staff') return
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => { void saveConsole() }, 300)
-  }
-  const saveConsole = async () => {
-    if (!storeId || scope !== 'staff') return
-    const st = store.getState()
-    const state = Object.fromEntries(CONSOLE_KEYS.map((k) => [k, st[k]]))
-    const { error } = await sb.from('console_state').upsert({
-      store_id: storeId, state, writer: CLIENT_ID, updated_at: new Date().toISOString(),
-    })
-    if (error) {
-      console.warn('[allinone] console_state 저장 실패', error)
-      useSyncStatus.setState({ status: 'error' })
-    }
-  }
-  const applyRemoteConsole = (row: { state?: Partial<ConsoleState>; writer?: string } | null) => {
-    if (!row?.state || row.writer === CLIENT_ID) return
-    applyingRemote = true
-    try { store.setState({ ...defaultConsoleState(), ...row.state }) } finally { applyingRemote = false }
-  }
-
   // ── 쓰기 헬퍼 ────────────────────────────────────────────────────────
 
   type Op = () => PromiseLike<{ error: unknown }>
-  /** 서버 쓰기 → 실패 시 메시지, 성공 시 관련 그룹 재조회 */
+  /** 서버 쓰기 → 실패 시 메시지, 성공 시 관련 그룹 재조회. 오프라인이면 즉시 거부. */
   const run = async (op: Op, ...groups: Group[]): Promise<string | null> => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return OFFLINE_MSG
     try {
       const { error } = await op()
       if (error) return errMsg(error)
@@ -167,12 +181,31 @@ export function createDbStore(sb: SupabaseClient) {
   // ── 스토어 ────────────────────────────────────────────────────────────
 
   const store = create<Store>()((set, get) => {
-    const cset: SetState = (patch) => {
-      set(patch)
-      scheduleConsoleSave()
+    const localOnly: Pick<Actions, LocalOnlyKey> = {
+      savePassType(t) {
+        const exists = get().passTypes.some((x) => x.id === t.id)
+        return run(
+          () => exists
+            ? sb.from('pass_types').update({ name: t.name, valid_days: t.validDays, color: t.color }).eq('id', t.id)
+            : sb.from('pass_types').insert({ store_id: requireStore(), name: t.name, valid_days: t.validDays, color: t.color, sort: get().passTypes.length }),
+          'passes',
+        )
+      },
+      removePassType: (id) => run(() => rpc('remove_pass_type', { p_type: id }), 'passes'),
+      issuePasses: (typeId, memberId, count) => run(() => rpc('issue_passes', { p_type: typeId, p_member: memberId, p_count: count }), 'passes'),
+      usePass: (passId) => run(() => rpc('use_pass', { p_pass: passId }), 'passes'),
+      extendPass: (passId, days) => run(() => rpc('extend_pass', { p_pass: passId, p_days: days }), 'passes'),
+      revokePass: (passId) => run(() => rpc('revoke_pass', { p_pass: passId }), 'passes'),
+      resetBizDay: () => run(() => rpc('reset_biz_day', {}), 'store', 'passes'),
+      closeSeason: () => run(() => rpc('close_season', {}), 'seasons'),
+      startSeason: (name) => run(() => rpc('start_season', { p_name: name }), 'seasons'),
+      addWait: (memberId, guestName, note) =>
+        run(() => rpc('waitlist_add', { p_member: memberId ?? null, p_guest_name: guestName ?? null, p_note: note ?? null }), 'waitlist'),
+      updateWait: (id, status, table, seat) =>
+        run(() => rpc('waitlist_update', { p_id: id, p_status: status, p_table: table ?? null, p_seat: seat ?? null }), 'waitlist'),
     }
 
-    const core: Omit<Actions, ConsoleActionKey> = {
+    const core: Omit<Actions, LocalOnlyKey> = {
       transferToMember: (memberId, c, amount, reason, gameId) =>
         run(() => rpc('transfer_to_member', {
           p_member: memberId, p_currency: c, p_amount: amount, p_reason: reason ?? null, p_game: gameId ?? null, p_request: crypto.randomUUID(),
@@ -197,26 +230,20 @@ export function createDbStore(sb: SupabaseClient) {
           ...('realName' in patch ? { real_name: patch.realName ?? null } : {}),
           ...('phone' in patch ? { phone: patch.phone ?? null } : {}),
           ...('memo' in patch ? { memo: patch.memo ?? null } : {}),
-        }).eq('id', id), 'members'),
+        }).eq('id', id), 'members', 'audit'),
 
-      leaveMember: (id) => run(() => rpc('leave_member', { p_member: id }), 'members', 'ledger'),
-
-      async adjustRp(memberId, delta, reason) {
-        const err = await run(() => rpc('adjust_rp', { p_member: memberId, p_delta: delta, p_reason: reason }), 'members')
-        if (err) return err
-        cset({ rpLog: [{ id: uid(), ts: Date.now(), memberId, delta, reason: reason.trim(), operator: get().operatorName }, ...get().rpLog] })
-        return null
-      },
+      leaveMember: (id) => run(() => rpc('leave_member', { p_member: id }), 'members', 'ledger', 'waitlist', 'audit'),
+      adjustRp: (memberId, delta, reason) => run(() => rpc('adjust_rp', { p_member: memberId, p_delta: delta, p_reason: reason }), 'members', 'seasons'),
 
       addManager: (email, name, role) =>
-        run(() => sb.from('staff').insert({ store_id: requireStore(), email: email.trim().toLowerCase(), name: name.trim(), role: role ?? 'manager' }), 'staff'),
+        run(() => sb.from('staff').insert({ store_id: requireStore(), email: email.trim().toLowerCase(), name: name.trim(), role: role ?? 'manager' }), 'staff', 'audit'),
       updateManager: (id, patch) =>
         run(() => sb.from('staff').update({
           ...(patch.loginId !== undefined ? { email: patch.loginId.trim().toLowerCase() } : {}),
           ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
           ...(patch.role !== undefined ? { role: patch.role } : {}),
-        }).eq('id', id), 'staff'),
-      removeManager: (id) => run(() => sb.from('staff').delete().eq('id', id), 'staff'),
+        }).eq('id', id), 'staff', 'audit'),
+      removeManager: (id) => run(() => sb.from('staff').delete().eq('id', id), 'staff', 'audit'),
 
       saveGameSet(gs) {
         const exists = get().gameSets.some((x) => x.id === gs.id)
@@ -224,26 +251,26 @@ export function createDbStore(sb: SupabaseClient) {
           () => exists
             ? sb.from('game_sets').update({ name: gs.name, data: gameSetToData(gs) }).eq('id', gs.id)
             : sb.from('game_sets').insert({ store_id: requireStore(), name: gs.name, data: gameSetToData(gs) }),
-          'gameSets',
+          'gameSets', 'audit',
         )
       },
       async duplicateGameSet(id) {
         const src = get().gameSets.find((x) => x.id === id)
         if (!src) return '게임 셋을 찾을 수 없습니다.'
-        return run(() => sb.from('game_sets').insert({ store_id: requireStore(), name: `${src.name} (복사본)`, data: gameSetToData(src) }), 'gameSets')
+        return run(() => sb.from('game_sets').insert({ store_id: requireStore(), name: `${src.name} (복사본)`, data: gameSetToData(src) }), 'gameSets', 'audit')
       },
-      removeGameSet: (id) => run(() => sb.from('game_sets').delete().eq('id', id), 'gameSets'),
+      removeGameSet: (id) => run(() => sb.from('game_sets').delete().eq('id', id), 'gameSets', 'audit'),
 
       createGame: (name, gameSetId, tables, opts) =>
         run(() => rpc('create_game', {
           p_name: name, p_game_set: gameSetId, p_tables: tables,
-          p_start: opts?.startAt ? new Date(opts.startAt).toISOString() : null,
+          p_start: opts?.startAt ? iso(opts.startAt) : null,
           p_notice: opts?.notice ?? null,
-        }), 'games'),
-      cancelGame: (id) => run(() => rpc('cancel_game', { p_game: id }), 'games', 'members', 'ledger'),
+        }), 'games', 'audit'),
+      cancelGame: (id) => run(() => rpc('cancel_game', { p_game: id }), 'games', 'members', 'ledger', 'audit'),
       pauseGame: (id) => run(() => rpc('pause_game', { p_game: id }), 'games'),
       resumeGame: (id) => run(() => rpc('resume_game', { p_game: id }), 'games'),
-      closeReg: (id) => run(() => sb.from('games').update({ reg_closed_manual: true }).eq('id', id), 'games'),
+      closeReg: (id) => run(() => sb.from('games').update({ reg_closed_manual: true }).eq('id', id), 'games', 'audit'),
       adjustToLevel: (id, levelIdx) => run(() => rpc('adjust_level', { p_game: id, p_level: levelIdx }), 'games'),
       async updateGame(id, patch) {
         const g = get().games.find((x) => x.id === id)
@@ -252,64 +279,59 @@ export function createDbStore(sb: SupabaseClient) {
           ...(patch.name !== undefined ? { name: patch.name } : {}),
           ...(patch.notice !== undefined ? { notice: patch.notice || null } : {}),
           ...(patch.prizes !== undefined ? { snapshot: { ...g.snapshot, prizes: patch.prizes } } : {}),
-        }).eq('id', id), 'games')
+        }).eq('id', id), 'games', 'audit')
       },
       adjustChips: (id, kind, chips) => run(() => rpc('adjust_chips', { p_game: id, p_kind: kind, p_chips: chips }), 'games'),
       joinGame: (gameId, memberId, type, currency) =>
         run(() => rpc('game_buyin', {
           p_game: gameId, p_member: memberId, p_type: type, p_currency: currency, p_request: crypto.randomUUID(),
-        }), 'games', 'members', 'ledger'),
+        }), 'games', 'members', 'ledger', 'waitlist'),
       eliminate: (gameId, memberId) => run(() => rpc('eliminate_entry', { p_game: gameId, p_member: memberId }), 'games'),
       moveSeat: (gameId, memberId, table, seat) =>
         run(() => sb.from('game_entries').update({ table_no: table, seat }).eq('game_id', gameId).eq('member_id', memberId), 'games'),
-      endGame: (gameId, ranking) => run(() => rpc('end_game', { p_game: gameId, p_ranking: ranking ?? null }), 'games', 'members', 'ledger'),
+      endGame: (gameId, ranking) => run(() => rpc('end_game', { p_game: gameId, p_ranking: ranking ?? null }), 'games', 'members', 'ledger', 'audit'),
 
       async resetData(mode) {
         const err = await run(() => rpc('reset_store', { p_mode: mode }))
         if (err) return err
-        applyingRemote = true
-        try { set(defaultConsoleState()) } finally { applyingRemote = false }
-        await saveConsole()
         await refresh(...ALL_STAFF_GROUPS)
         return null
       },
       async setLockPin() {
         return null // 클라우드 모드는 계정 로그인이 잠금을 대신함
       },
-      saveTables: (tables) => run(() => sb.from('stores').update({ tables }).eq('id', requireStore()), 'store'),
-      async saveStoreName(name) {
-        if (!name.trim()) return '매장 이름을 입력해주세요.'
-        return run(() => sb.from('stores').update({ name: name.trim() }).eq('id', requireStore()), 'store')
+      saveStoreName(name) {
+        if (!name.trim()) return Promise.resolve('매장 이름을 입력해주세요.')
+        return run(() => sb.from('stores').update({ name: name.trim() }).eq('id', requireStore()), 'store', 'audit')
       },
+      saveTables: (tables) => run(() => sb.from('stores').update({ tables }).eq('id', requireStore()), 'store', 'audit'),
       saveEvent: (post) =>
         run(
           () => post.id
             ? sb.from('events').update({ title: post.title, body: post.body }).eq('id', post.id)
             : sb.from('events').insert({ store_id: requireStore(), title: post.title, body: post.body }),
-          'events',
+          'events', 'audit',
         ),
-      removeEvent: (id) => run(() => sb.from('events').delete().eq('id', id), 'events'),
+      removeEvent: (id) => run(() => sb.from('events').delete().eq('id', id), 'events', 'audit'),
 
-      async settleSeason(rewards) {
-        const season = get().seasons.find((s) => s.status === 'closed')
-        if (!season?.results) return '마감된 시즌이 없습니다.'
-        const list = season.results
-          .map((r) => ({ memberId: r.memberId, amount: rewards[r.rank - 1] ?? 0, rank: r.rank }))
-          .filter((r) => r.amount > 0)
-        const err = await run(() => rpc('settle_season', { p_rewards: list, p_season_name: season.name }), 'members', 'ledger')
-        if (err) return err
-        cset({
-          seasons: get().seasons.map((s) =>
-            s.id === season.id
-              ? { ...s, status: 'settled' as const, results: s.results?.map((r) => ({ ...r, paid: rewards[r.rank - 1] ?? 0 })) }
-              : s,
-          ),
-        })
+      settleSeason: (rewards) =>
+        run(() => rpc('settle_season', {
+          p_rewards: rewards.map((amount, i) => ({ rank: i + 1, amount })).filter((r) => r.amount > 0),
+        }), 'seasons', 'members', 'ledger'),
+
+      async setLedgerRange(range) {
+        set({ ledgerRange: range })
+        await refresh('ledger')
+        return null
+      },
+      async setHistoryRange(range) {
+        set({ historyRange: range })
+        await refresh('games')
         return null
       },
     }
 
-    return { ...emptyState(), ...consoleActions(cset, get), ...core }
+    return { ...emptyState(), ...localOnly, ...core }
   })
 
   // ── Realtime ──────────────────────────────────────────────────────────
@@ -319,7 +341,7 @@ export function createDbStore(sb: SupabaseClient) {
     if (kind === 'none' || !storeId) return
     const ch = sb.channel(`allinone-${storeId}-${CLIENT_ID}`)
     const byStore = `store_id=eq.${storeId}`
-    const on = (table: string, filter: string | undefined, handler: (payload: { new: Row | null }) => void) =>
+    const on = (table: string, filter: string | undefined, handler: () => void) =>
       ch.on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, handler as never)
     on('stores', `id=eq.${storeId}`, () => refreshSoon('store'))
     on('games', byStore, () => refreshSoon('games'))
@@ -327,21 +349,38 @@ export function createDbStore(sb: SupabaseClient) {
     on('buyin_events', undefined, () => refreshSoon('games'))
     on('events', byStore, () => refreshSoon('events'))
     if (kind === 'staff') {
-      on('console_state', byStore, (p) => applyRemoteConsole(p.new as never))
       on('members', byStore, () => refreshSoon('members'))
       on('wallets', byStore, () => refreshSoon('members'))
       on('ledger', byStore, () => refreshSoon('ledger'))
       on('game_sets', byStore, () => refreshSoon('gameSets'))
       on('staff', byStore, () => refreshSoon('staff'))
+      on('pass_types', byStore, () => refreshSoon('passes'))
+      on('passes', byStore, () => refreshSoon('passes'))
+      on('pass_log', byStore, () => refreshSoon('passes'))
+      on('seasons', byStore, () => refreshSoon('seasons'))
+      on('rp_log', byStore, () => refreshSoon('seasons'))
+      on('waitlist', byStore, () => refreshSoon('waitlist'))
+      on('audit_log', byStore, () => refreshSoon('audit'))
     } else {
       on('members', undefined, () => refreshSoon('ranking'))
-      on('console_state', byStore, () => refreshSoon('ranking'))
+      on('seasons', byStore, () => refreshSoon('ranking'))
     }
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') useSyncStatus.setState({ status: 'synced' })
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') useSyncStatus.setState({ status: 'error' })
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') useSyncStatus.setState({ status: navigator.onLine ? 'error' : 'offline' })
     })
     channel = ch
+  }
+
+  // ── 오프라인 감지: 타이머 표시는 계속되고, 쓰기는 거부·재접속 시 전체 재조회 ──
+  if (typeof window !== 'undefined') {
+    window.addEventListener('offline', () => useSyncStatus.setState({ status: 'offline' }))
+    window.addEventListener('online', () => {
+      useSyncStatus.setState({ status: 'connecting' })
+      void refresh(...(scope === 'staff' ? ALL_STAFF_GROUPS : PUBLIC_GROUPS)).then(() => {
+        if (useSyncStatus.getState().status === 'connecting') useSyncStatus.setState({ status: 'synced' })
+      })
+    })
   }
 
   // ── 스코프 전환 ───────────────────────────────────────────────────────
@@ -359,7 +398,7 @@ export function createDbStore(sb: SupabaseClient) {
     } catch (e) {
       if (seq !== loadSeq) return
       scope = 'none'
-      useSyncStatus.setState({ status: 'error' })
+      useSyncStatus.setState({ status: navigator.onLine ? 'error' : 'offline' })
       throw new Error(errMsg(e))
     }
     if (seq !== loadSeq) return
@@ -367,7 +406,7 @@ export function createDbStore(sb: SupabaseClient) {
     useReady.setState({ ready: true })
   }
 
-  /** 직원 콘솔 스코프: 매장 전체 데이터 + 콘솔 상태 */
+  /** 직원 콘솔 스코프: 매장 전체 데이터 */
   const ensureStaffScope = async (id: string, operatorName: string) => {
     if (scope === 'staff' && storeId === id) {
       if (store.getState().operatorName !== operatorName) store.setState({ operatorName })

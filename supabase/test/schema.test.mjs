@@ -77,6 +77,8 @@ await test('매장 개설 → 직원(owner)·지갑·콘솔 상태·기본 게�
   assert.equal((await q(`select * from wallets where store_id = $1 and owner = 'store'`, [storeId])).length, 3)
   assert.ok(await one('select * from console_state where store_id = $1', [storeId]))
   assert.equal((await q('select * from game_sets where store_id = $1', [storeId])).length, 1)
+  assert.equal((await q('select * from pass_types where store_id = $1', [storeId])).length, 3)
+  assert.equal((await q(`select * from seasons where store_id = $1 and status = 'open'`, [storeId])).length, 1)
   const role = (await one('select my_role() as r')).r
   assert.equal(role.kind, 'staff')
   assert.equal(role.role, 'owner')
@@ -289,24 +291,118 @@ await test('게임 취소 → 참가비 환불·프라이즈 회수·RP 역거�
 })
 
 console.log('\n시즌·회원')
-await test('시즌 정산 → 보상 지급 + RP 전원 리셋', async () => {
+await test('시즌: 마감 → 결과 스냅샷 → 정산(보상 지급 + RP 리셋) → 새 시즌', async () => {
   await q(`select adjust_rp($1, 500, '이벤트 보너스')`, [m1])
-  await q(`select settle_season($1, '시즌 1')`, [JSON.stringify([{ memberId: m1, amount: 50, rank: 1 }])])
+  assert.equal((await q('select * from rp_log where member_id = $1', [m1])).length, 1)
+  await fails(() => q(`select settle_season('[]'::jsonb)`), /먼저 시즌을 마감/)
+  await q(`select close_season()`)
+  const closed = await one(`select * from seasons where store_id = $1 and status = 'closed'`, [storeId])
+  assert.equal(closed.name, '시즌 1')
+  assert.equal(closed.results[0].memberId, m1)
+  assert.equal(closed.results[0].rank, 1)
+  await fails(() => q(`select start_season('시즌 2')`), /정산 대기/)
+  await q(`select settle_season($1)`, [JSON.stringify([{ rank: 1, amount: 50 }])])
   assert.equal(Number((await one('select rp from members where id = $1', [m1])).rp), 0)
   const l = await one(`select * from ledger where reason like '시즌 1 1위%'`)
   assert.equal(Number(l.amount), 50)
+  const settled = await one(`select * from seasons where id = $1`, [closed.id])
+  assert.equal(settled.status, 'settled')
+  assert.equal(settled.results[0].paid, 50)
+  await q(`select start_season('시즌 2')`)
+  assert.equal((await q(`select * from seasons where store_id = $1 and status = 'open'`, [storeId])).length, 1)
 })
 await test('RP 수동 조정: 사유 필수·음수 불가', async () => {
   await fails(() => q(`select adjust_rp($1, 100, '')`, [m1]), /사유/)
   await fails(() => q(`select adjust_rp($1, -100, '회수')`, [m1]), /RP가 부족/)
 })
-await test('회원 탈퇴 → 잔액 전액 환수, 원장 보존', async () => {
+
+console.log('\n이용권')
+const passType = (await one(`select id, name from pass_types where store_id = $1 order by sort limit 1`, [storeId]))
+await test('발급 → 사용 → 연장/회수 규칙 → 유형 삭제 규칙', async () => {
+  await q(`select issue_passes($1, $2, 2)`, [passType.id, m1])
+  const ps = await q(`select * from passes where member_id = $1 order by issued_at`, [m1])
+  assert.equal(ps.length, 2)
+  assert.equal(ps[0].status, 'unused')
+  await fails(() => q(`select issue_passes($1, $2, 0)`, [passType.id, m1]), /1~100/)
+  await q(`select use_pass($1)`, [ps[0].id])
+  assert.equal((await one('select status from passes where id = $1', [ps[0].id])).status, 'used')
+  await fails(() => q(`select use_pass($1)`, [ps[0].id]), /이미 사용/)
+  await fails(() => q(`select extend_pass($1, 10)`, [ps[0].id]), /미사용 상태/)
+  await fails(() => q(`select remove_pass_type($1)`, [passType.id]), /미사용 이용권이 남아/)
+  await q(`select extend_pass($1, 7)`, [ps[1].id])
+  await q(`select revoke_pass($1)`, [ps[1].id])
+  assert.equal((await one('select status from passes where id = $1', [ps[1].id])).status, 'revoked')
+  await q(`select remove_pass_type($1)`, [passType.id]) // 사용 이력 있음 → archived
+  assert.equal((await one('select archived from pass_types where id = $1', [passType.id])).archived, true)
+  const log = await q(`select action from pass_log where store_id = $1 order by ts`, [storeId])
+  assert.deepEqual(log.map((x) => x.action), ['발급', '사용', '연장', '회수'])
+  await q(`select reset_biz_day()`)
+  assert.equal((await q(`select * from pass_log where action = '집계 초기화'`)).length, 1)
+})
+
+console.log('\n대기자 · 좌석 QR 체크인')
+await test('좌석 QR 셀프 체크인 → 착석, 다른 손님 같은 좌석 거부, 대기 등록·순번', async () => {
+  await as(p1Uid)
+  const r = (await one(`select checkin_self(1, 3) as r`)).r
+  assert.equal(r.status, 'seated')
+  assert.equal(r.table, 1)
+  assert.equal(r.seat, 3)
+  await fails(() => q(`select checkin_self(99, 1)`), /존재하지 않는 테이블/)
+  await fails(() => q(`select checkin_self(1, 50)`), /좌석 번호/)
+  const uid2 = (await one(`select user_id from members where nickname = '나중가입'`)).user_id
+  await as(uid2)
+  await fails(() => q(`select checkin_self(1, 3)`), /이미 다른 손님/)
+  const w = (await one(`select checkin_self() as r`)).r
+  assert.equal(w.status, 'waiting')
+  assert.equal(w.position, 1)
+  await as(ownerUid)
+})
+await test('직원: 대기 추가·호출·착석·노쇼, 중복 등록 거부', async () => {
+  const guest = (await one(`select waitlist_add(null, '워크인 손님', '2명') as id`)).id
+  await fails(() => q(`select waitlist_add(null, '')`), /회원을 선택하거나/)
+  await fails(() => q(`select waitlist_add($1)`, [p1.id]), /이미 대기 명단/)
+  await q(`select waitlist_update($1, 'called')`, [guest])
+  assert.ok((await one('select called_at from waitlist where id = $1', [guest])).called_at)
+  await q(`select waitlist_update($1, 'seated', 2, 4)`, [guest])
+  const g = await one('select * from waitlist where id = $1', [guest])
+  assert.equal(g.status, 'seated'); assert.equal(g.table_no, 2); assert.equal(g.seat, 4)
+  await q(`select waitlist_update($1, 'noshow')`, [guest])
+  assert.ok((await one('select ended_at from waitlist where id = $1', [guest])).ended_at)
+  await fails(() => q(`select waitlist_update($1, 'flying')`, [guest]), /알 수 없는 상태/)
+})
+await test('셀프 바인 시 체크인한 좌석(T1-3)을 그대로 배정', async () => {
+  const g3 = (await one(`select create_game('체크인 게임', $1, array[1,2]) as id`, [gsId])).id
+  await q(`select transfer_to_member($1, 'P', 2, '충전')`, [p1.id])
+  await as(p1Uid)
+  const r = (await one(`select game_buyin($1, null, null, 'P') as r`, [g3])).r
+  assert.equal(r.table, 1)
+  assert.equal(r.seat, 3)
+  await q(`select checkout_self()`)
+  assert.equal((await q(`select * from waitlist where member_id = $1 and status in ('waiting','called','seated')`, [p1.id])).length, 0)
+  await as(ownerUid)
+  await q(`select end_game($1)`, [g3])
+})
+
+console.log('\n감사 로그 · 탈퇴 익명화')
+await test('회원 정보 수정 → audit_log에 변경 컬럼만 기록', async () => {
+  await q(`update members set memo = 'VIP' where id = $1`, [p1.id])
+  const a = await one(`select * from audit_log where target_id = $1 and action = 'members.update' order by ts desc limit 1`, [p1.id])
+  assert.equal(a.actor, '대표')
+  assert.deepEqual(Object.keys(a.detail), ['memo'])
+  assert.deepEqual(a.detail.memo, [null, 'VIP'])
+})
+await test('회원 탈퇴 → 잔액 환수 + 개인정보 익명화 + 계정 연결 해제, 원장 보존', async () => {
   const bal = Number((await one(`select balance from wallets where owner = $1 and currency = 'P'`, [m1])).balance)
   assert.ok(bal > 0)
   await q(`select leave_member($1)`, [m1])
+  const m = await one('select * from members where id = $1', [m1])
+  assert.equal(m.status, 'left')
+  assert.equal(m.nickname, '탈퇴회원 0001')
+  assert.equal(m.phone, null)
+  assert.equal(m.user_id, null)
   assert.equal(Number((await one(`select balance from wallets where owner = $1 and currency = 'P'`, [m1])).balance), 0)
-  assert.equal((await one('select status from members where id = $1', [m1])).status, 'left')
   assert.ok((await q(`select * from ledger where from_owner = $1 and reason = '회원 탈퇴 잔액 환수'`, [m1])).length >= 1)
+  assert.equal((await q(`select * from audit_log where action = 'members.leave' and target_id = $1`, [m1])).length, 1)
 })
 await test('회원 본인 프로필 수정', async () => {
   await as(p1Uid)
@@ -319,20 +415,21 @@ await test('회원 본인 프로필 수정', async () => {
 })
 
 console.log('\n역할 권한')
-await test('딜러는 재화 전송 불가, 참가 등록은 가능', async () => {
+await test('딜러: 재화 전송·참가 등록·취소 가능, 데이터 초기화·직원 관리는 불가', async () => {
   const dealerUid = (await one(`select user_id from staff where email = 'late@test.com'`)).user_id
   await as(dealerUid)
-  await fails(() => q(`select transfer_to_member($1, 'P', 1, 'x')`, [p1.id]), /권한이 없습니다/)
+  await q(`select transfer_to_member($1, 'P', 3, '현금 결제')`, [p1.id])
   const g2 = (await one(`select create_game('딜러 게임', $1, array[3]) as id`, [gsId])).id
-  await q(`select transfer_to_member($1, 'P', 1, 'x')`, [p1.id]).catch(() => {})
-  await as(ownerUid)
-  await q(`select transfer_to_member($1, 'P', 3, '충전')`, [p1.id])
-  await as(dealerUid)
   const r = (await one(`select game_buyin($1, $2, 'BUYIN', 'P') as r`, [g2, p1.id])).r
   assert.equal(r.type, 'BUYIN')
-  await fails(() => q(`select cancel_game($1)`, [g2]), /권한이 없습니다/)
+  await q(`select cancel_game($1)`, [g2])
+  assert.equal((await one('select cancelled from games where id = $1', [g2])).cancelled, true)
+  await fails(() => q(`select reset_store('empty')`), /권한이 없습니다/)
+  await q('set role authenticated')
+  const ins = await db.query(`insert into staff (store_id, email, name, role) values ($1, 'x@test.com', 'x', 'dealer')`, [storeId]).catch((e) => e)
+  assert.match(String(ins.message), /row-level security/)
+  await q('reset role')
   await as(ownerUid)
-  await q(`select end_game($1)`, [g2])
 })
 
 console.log('\nRLS (authenticated / anon 역할로 실제 쿼리)')
@@ -348,6 +445,9 @@ await test('회원은 본인 행·지갑·원장만 조회, 다른 회원 조회
   assert.ok(ledger.every((l) => l.from_owner === p1.id || l.to_owner === p1.id))
   assert.equal((await q('select * from console_state')).length, 0)
   assert.equal((await q('select * from staff')).length, 0)
+  assert.equal((await q('select * from audit_log')).length, 0)
+  assert.ok((await q('select * from waitlist')).every((w) => w.member_id === p1.id))
+  assert.ok((await q('select * from rp_log')).every((w) => w.member_id === p1.id))
   assert.ok((await q('select * from games')).length >= 2) // 게임은 공개
   await fails(() => q(`update members set rp = 99999 where id = $1`, [p1.id]).then(async () => {
     const m = await one('select rp from members where id = $1', [p1.id])
@@ -404,14 +504,44 @@ await test("reset_store('demo') → 회원 6·게임 2·참가 3·원장 생성"
     assert.equal(issued, held, `보존 불변식 ${c}: 발행 ${issued} ≠ 보유 ${held}`)
   }
 })
-await test("reset_store('empty') → 데이터 비움, 구조 유지", async () => {
+await test("reset_store('empty') → 데이터 비움, 구조 유지, 새 시즌·audit 기록", async () => {
+  const auditBefore = (await q('select * from audit_log')).length
   await q(`select reset_store('empty')`)
   assert.equal((await q('select * from members where store_id = $1', [storeId])).length, 0)
   assert.equal((await q('select * from ledger where store_id = $1', [storeId])).length, 0)
+  assert.equal((await q('select * from waitlist where store_id = $1', [storeId])).length, 0)
+  assert.equal((await q('select * from passes where store_id = $1', [storeId])).length, 0)
   assert.equal((await q('select * from game_sets where store_id = $1', [storeId])).length, 1)
+  assert.ok((await q('select * from pass_types where store_id = $1', [storeId])).length >= 3)
+  assert.equal((await q(`select * from seasons where store_id = $1 and status = 'open'`, [storeId])).length, 1)
   assert.equal((await q(`select * from wallets where store_id = $1 and owner = 'store'`, [storeId])).length, 3)
+  const audit = await q('select action from audit_log order by ts desc limit 1')
+  assert.equal(audit[0].action, 'store.reset')
+  assert.equal((await q('select * from audit_log')).length, auditBefore + 1) // 초기화 중 삭제 행은 로그에 남기지 않음
   await q(`select issue_to_store('P', 10, '초기화 후 발행')`)
   await fails(() => q(`delete from ledger`), /수정·삭제할 수 없습니다/) // 초기화 밖에서는 여전히 차단
+})
+
+console.log('\nconsole_state(jsonb) → 테이블 마이그레이션')
+await test('기존 jsonb 상태를 넣고 schema.sql 재적용 → pass_types·seasons·rp_log 이관', async () => {
+  const mid = (await one(`select create_member('이관회원') as id`)).id
+  const now = Date.now()
+  await q(`delete from pass_types where store_id = $1`, [storeId])
+  await q(`delete from seasons where store_id = $1`, [storeId])
+  await q(`update console_state set state = $2::jsonb where store_id = $1`, [storeId, JSON.stringify({
+    passTypes: [{ id: 'aaaa1111', name: '이관권', validDays: 15, color: '#ffffff' }],
+    passes: [{ id: 'p1', typeId: 'aaaa1111', memberId: mid, issuedAt: now - 86400000, expiresAt: now + 86400000, status: 'unused' }],
+    seasons: [{ id: 's1', name: '이관 시즌', startedAt: now - 5 * 86400000, status: 'open' }],
+    rpLog: [{ id: 'r1', ts: now, memberId: mid, delta: 10, reason: '이관', operator: '대표' }],
+    bizResetAt: now - 3600000,
+  })])
+  await db.exec(schema)
+  assert.equal((await one(`select name from pass_types where store_id = $1`, [storeId])).name, '이관권')
+  const p = await one(`select * from passes where member_id = $1`, [mid])
+  assert.equal(p.status, 'unused')
+  assert.equal((await one(`select name from seasons where store_id = $1`, [storeId])).name, '이관 시즌')
+  assert.equal((await q(`select * from rp_log where member_id = $1`, [mid])).length, 1)
+  assert.deepEqual((await one(`select state from console_state where store_id = $1`, [storeId])).state, {})
 })
 
 console.log(`\n${passed}개 테스트 통과`)
