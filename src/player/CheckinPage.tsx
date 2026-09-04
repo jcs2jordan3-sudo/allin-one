@@ -73,7 +73,7 @@ export default function CheckinPage() {
   }
 
   return (
-    <PlayerShell storeName={storeName} right={<Link to="/me" className="text-[13px] text-mut hover:text-ink">내 정보</Link>}>
+    <PlayerShell storeName={storeName} right={<Link to="/me" className="text-[15px] text-mut hover:text-ink">내 정보</Link>}>
       <Card className={`p-6 text-center ${result ? 'border-mint/40 bg-mint/8' : ''}`}>
         {busy && !result && <div className="text-mut">체크인 처리 중…</div>}
         {error && (
@@ -91,7 +91,7 @@ export default function CheckinPage() {
             ) : (
               <div className="mt-2 text-3xl font-black num tracking-tight">대기 {result.position ?? '-'}번째</div>
             )}
-            <p className="mt-3 text-[13px] text-mut leading-relaxed">
+            <p className="mt-3 text-[15px] text-mut leading-relaxed">
               {result.status === 'seated'
                 ? '직원이 화면에서 확인합니다. 아래 게임을 선택해 바인하면 이 자리로 배정됩니다.'
                 : '순서가 되면 직원이 호출합니다. 자리에 앉은 뒤 좌석 QR을 스캔하면 착석 처리됩니다.'}
@@ -102,7 +102,7 @@ export default function CheckinPage() {
 
       {result && games.length > 0 && (
         <section>
-          <h2 className="text-[15px] font-bold mb-2">지금 바인 가능한 게임</h2>
+          <h2 className="text-[17px] font-bold mb-2">지금 바인 가능한 게임</h2>
           <div className="space-y-2">
             {games.map((g) => {
               const closed = isRegClosed(g, now)
@@ -112,7 +112,7 @@ export default function CheckinPage() {
                   <Card className="px-4 py-3.5 flex items-center gap-3 hover:border-mint/40 transition-colors">
                     <div className="min-w-0 flex-1">
                       <div className="font-bold truncate">{g.name}</div>
-                      <div className="text-[13px] text-mut num">TABLE {g.tables.join('·')} · {g.entries.filter((e) => e.status === 'playing').length}명 참여 중</div>
+                      <div className="text-[15px] text-mut num">TABLE {g.tables.join('·')} · {g.entries.filter((e) => e.status === 'playing').length}명 참여 중</div>
                     </div>
                     {scheduled ? <Badge tone="sky">예약</Badge> : closed ? <Badge tone="rose">마감</Badge> : <Badge tone="mint">바인 ›</Badge>}
                   </Card>

@@ -109,7 +109,7 @@ export default function PassesTab() {
           <Card className="p-5">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
               <h3 className="font-bold">
-                영업일 집계 <span className="text-[13px] text-mut font-normal ml-1 num">마지막 초기화 {fmtDateTime(st.bizResetAt)}</span>
+                영업일 집계 <span className="text-[15px] text-mut font-normal ml-1 num">마지막 초기화 {fmtDateTime(st.bizResetAt)}</span>
               </h3>
               <Btn sm variant="danger" onClick={() => setConfirmReset(true)}>초기화</Btn>
             </div>
@@ -117,7 +117,7 @@ export default function PassesTab() {
           </Card>
           <Card className="p-5">
             <h3 className="font-bold mb-4">
-              당월 집계 <span className="text-[13px] text-mut font-normal ml-1">※ 1일 ~ 현재</span>
+              당월 집계 <span className="text-[15px] text-mut font-normal ml-1">※ 1일 ~ 현재</span>
             </h3>
             <AggGrid data={monthAgg} />
           </Card>
@@ -163,7 +163,7 @@ export default function PassesTab() {
               return (
                 <Card key={p.id} className={`px-4 py-3 flex flex-wrap items-center gap-3 ${vs === 'used' || vs === 'revoked' ? 'opacity-60' : ''}`}>
                   <span
-                    className="px-2.5 py-1 rounded-lg text-[13px] font-bold shrink-0"
+                    className="px-2.5 py-1 rounded-lg text-[15px] font-bold shrink-0"
                     style={{ background: `color-mix(in srgb, ${t?.color ?? '#888'} 18%, transparent)`, color: t?.color }}
                   >
                     {t?.name ?? '삭제된 유형'}
@@ -172,11 +172,11 @@ export default function PassesTab() {
                     <span className="flex items-center gap-2">
                       <Avatar emoji={m.emoji} color={m.color} size={26} />
                       <span className="text-sm font-semibold">{m.nickname}</span>
-                      <span className="text-[13px] text-mut num">({m.no})</span>
+                      <span className="text-[15px] text-mut num">({m.no})</span>
                     </span>
                   )}
-                  <span className="text-[13px] text-mut num">발급 {fmtDateTime(p.issuedAt)}</span>
-                  <span className={`text-[13px] num ${vs === 'expired' ? 'text-rose font-semibold' : 'text-mut'}`}>
+                  <span className="text-[15px] text-mut num">발급 {fmtDateTime(p.issuedAt)}</span>
+                  <span className={`text-[15px] num ${vs === 'expired' ? 'text-rose font-semibold' : 'text-mut'}`}>
                     {vs === 'used' && p.usedAt
                       ? `사용 ${fmtDateTime(p.usedAt)}`
                       : vs === 'expired'
@@ -222,8 +222,8 @@ export default function PassesTab() {
                   </Badge>
                   {l.typeName && <span className="font-semibold">{l.typeName}</span>}
                   {m && <span className="text-mut">{m.nickname} ({m.no})</span>}
-                  {l.detail && <span className="text-mut text-[14px]">{l.detail}</span>}
-                  <span className="ml-auto text-[13px] text-faint num">
+                  {l.detail && <span className="text-mut text-[16px]">{l.detail}</span>}
+                  <span className="ml-auto text-[15px] text-faint num">
                     {l.operator} · {fmtDateTime(l.ts)}
                   </span>
                 </Card>
@@ -350,7 +350,7 @@ function IssueModal({ onClose }: { onClose: () => void }) {
           </Field>
         </div>
         {selected && (
-          <p className="text-[13px] text-mut -mt-2">유효기간 발급일로부터 <b className="text-ink">{selected.validDays}일</b></p>
+          <p className="text-[15px] text-mut -mt-2">유효기간 발급일로부터 <b className="text-ink">{selected.validDays}일</b></p>
         )}
         <Field label="회원 검색">
           <Input placeholder="닉네임 혹은 번호" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -366,7 +366,7 @@ function IssueModal({ onClose }: { onClose: () => void }) {
             >
               <Avatar emoji={m.emoji} color={m.color} size={26} />
               <span className="text-sm font-semibold">{m.nickname}</span>
-              <span className="text-[13px] text-mut num">({m.no})</span>
+              <span className="text-[15px] text-mut num">({m.no})</span>
             </button>
           ))}
         </div>
@@ -428,7 +428,7 @@ function TypesModal({ onClose }: { onClose: () => void }) {
           + 유형 추가
         </Btn>
         {error && <div className="text-sm text-rose">{error}</div>}
-        <p className="text-[13px] text-mut pt-2">
+        <p className="text-[15px] text-mut pt-2">
           변경 사항은 즉시 저장됩니다. 이미 발급된 이용권의 만료일은 유효기간을 바꿔도 변하지 않습니다.
         </p>
       </div>

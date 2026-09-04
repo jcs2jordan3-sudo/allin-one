@@ -60,22 +60,22 @@ export default function ConsoleLayout() {
                 <span className="w-8 h-8 rounded-xl bg-mint/15 border border-mint/30 text-mint flex items-center justify-center text-base font-black">
                   ♠
                 </span>
-                <span className="font-extrabold tracking-tight text-[15px]">
+                <span className="font-extrabold tracking-tight text-[17px]">
                   ALL-IN <span className="text-mint">ONE</span>
                 </span>
               </div>
-              <span className="hidden sm:inline-flex text-[13px] text-mut border border-line rounded-full px-2.5 py-0.5">
+              <span className="hidden sm:inline-flex text-[15px] text-mut border border-line rounded-full px-2.5 py-0.5">
                 {storeName}
               </span>
               <span
-                className={`hidden md:inline-flex items-center gap-1.5 text-[12px] font-semibold ${syncMeta.text}`}
+                className={`hidden md:inline-flex items-center gap-1.5 text-[14px] font-semibold ${syncMeta.text}`}
                 title={sync === 'local' ? '.env.local에 Supabase 키를 설정하면 클라우드 모드가 켜집니다 (SUPABASE_SETUP.md)' : undefined}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${syncMeta.dot}`} aria-hidden />
                 {syncMeta.label}
               </span>
             </div>
-            <nav className="flex items-center gap-1 text-[14px] text-mut">
+            <nav className="flex items-center gap-1 text-[16px] text-mut">
               <a href={appUrl('/rank')} target="_blank" rel="noreferrer" className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2">
                 공개 랭킹
               </a>
@@ -96,7 +96,7 @@ export default function ConsoleLayout() {
                 <NavLink
                   key={t.to}
                   to={t.to}
-                  className={`px-3.5 py-2.5 text-[16px] font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                  className={`px-3.5 py-2.5 text-[18px] font-semibold whitespace-nowrap border-b-2 transition-colors ${
                     active ? 'border-mint text-ink' : 'border-transparent text-mut hover:text-ink'
                   }`}
                 >

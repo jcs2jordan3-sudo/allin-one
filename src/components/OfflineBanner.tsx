@@ -8,7 +8,7 @@ export default function OfflineBanner() {
   return (
     <div
       role="status"
-      className={`sticky top-0 z-50 text-center text-[13px] font-semibold px-4 py-2 border-b ${
+      className={`sticky top-0 z-50 text-center text-[15px] font-semibold px-4 py-2 border-b ${
         offline ? 'bg-rose/15 text-rose border-rose/30' : 'bg-gold/15 text-gold border-gold/30'
       }`}
     >

@@ -6,7 +6,7 @@ export default function Splash({ text, sub }: { text?: string; sub?: string }) {
         ♠ ALL-IN <span className="text-mint">ONE</span>
       </div>
       {text && <div className="text-mut text-sm">{text}</div>}
-      {sub && <div className="text-faint text-[13px] max-w-sm leading-relaxed">{sub}</div>}
+      {sub && <div className="text-faint text-[15px] max-w-sm leading-relaxed">{sub}</div>}
     </div>
   )
 }

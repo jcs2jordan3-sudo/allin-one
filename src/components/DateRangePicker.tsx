@@ -22,21 +22,21 @@ export default function DateRangePicker({ value, onChange }: { value: DateRange;
         type="date"
         value={fmtDate(value.from)}
         onChange={(e) => { const t = parse(e.target.value); if (t !== null) onChange({ from: startOfDay(t), to: Math.max(value.to, endOfDay(t)) }) }}
-        className="bg-surface2 border border-line2 rounded-lg px-2 py-1.5 text-[13px] num outline-none focus:border-mint/60"
+        className="bg-surface2 border border-line2 rounded-lg px-2 py-1.5 text-[15px] num outline-none focus:border-mint/60"
       />
-      <span className="text-faint text-[13px]">~</span>
+      <span className="text-faint text-[15px]">~</span>
       <input
         type="date"
         value={fmtDate(value.to)}
         onChange={(e) => { const t = parse(e.target.value); if (t !== null) onChange({ from: Math.min(value.from, startOfDay(t)), to: endOfDay(t) }) }}
-        className="bg-surface2 border border-line2 rounded-lg px-2 py-1.5 text-[13px] num outline-none focus:border-mint/60"
+        className="bg-surface2 border border-line2 rounded-lg px-2 py-1.5 text-[15px] num outline-none focus:border-mint/60"
       />
       {PRESETS.map((p) => (
         <button
           key={p.label}
           type="button"
           onClick={() => onChange(p.range())}
-          className="px-2 py-1 rounded-full border border-line2 text-[12px] text-mut hover:text-ink hover:border-mint/50"
+          className="px-2 py-1 rounded-full border border-line2 text-[14px] text-mut hover:text-ink hover:border-mint/50"
         >
           {p.label}
         </button>

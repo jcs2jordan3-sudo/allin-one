@@ -52,7 +52,7 @@ export default function GameEditModal({ game, open, onClose }: { game: Game; ope
 
         {/* 프라이즈 설정 — 이 게임에만 적용 (게임 셋 원본은 유지) */}
         <div>
-          <span className="text-[14px] font-bold block mb-2">
+          <span className="text-[16px] font-bold block mb-2">
             프라이즈 설정 <span className="text-mut font-normal">· {prizes.length}등까지 제공 · 이 게임에만 적용</span>
           </span>
           <div className="space-y-2 max-w-xs">
@@ -70,7 +70,7 @@ export default function GameEditModal({ game, open, onClose }: { game: Game; ope
 
         {/* 칩 보정 */}
         <div>
-          <span className="text-[14px] font-bold block mb-2">칩 보정 <span className="text-mut font-normal">· 카운팅 오류 정정</span></span>
+          <span className="text-[16px] font-bold block mb-2">칩 보정 <span className="text-mut font-normal">· 카운팅 오류 정정</span></span>
           <div className="flex flex-wrap gap-2 mb-3">
             {CORRECTION_STEPS.map((s) => (
               <Btn key={s} sm onClick={() => { setPending(pending + s); setMsg(null) }}>
@@ -81,35 +81,35 @@ export default function GameEditModal({ game, open, onClose }: { game: Game; ope
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
             <div className="bg-surface2/60 border border-line rounded-xl px-3.5 py-2.5">
-              <div className="text-[12px] text-faint">기존 전체 칩</div>
+              <div className="text-[14px] text-faint">기존 전체 칩</div>
               <div className="font-bold num">{fmtNum(currentTotal)}</div>
             </div>
             <div className="bg-surface2/60 border border-line rounded-xl px-3.5 py-2.5">
-              <div className="text-[12px] text-faint">조정값</div>
+              <div className="text-[14px] text-faint">조정값</div>
               <div className={`font-bold num ${pending > 0 ? 'text-mint' : pending < 0 ? 'text-rose' : ''}`}>
                 {pending > 0 ? '+' : ''}{fmtNum(pending)}
               </div>
             </div>
             <div className="bg-surface2/60 border border-line rounded-xl px-3.5 py-2.5">
-              <div className="text-[12px] text-faint">예상 칩</div>
+              <div className="text-[14px] text-faint">예상 칩</div>
               <div className="font-bold num text-gold">{fmtNum(currentTotal + pending)}</div>
             </div>
           </div>
-          <div className="text-[13px] text-mut mt-2 num">
+          <div className="text-[15px] text-mut mt-2 num">
             누적 — 칩 보정 {game.correctionCount ?? 0}회 / 애드온 {game.addonCount ?? 0}회
           </div>
         </div>
 
         {/* 애드온 */}
         <div>
-          <span className="text-[14px] font-bold block mb-2">애드온</span>
+          <span className="text-[16px] font-bold block mb-2">애드온</span>
           <div className="flex items-end gap-2 max-w-xs">
             <Field label="애드온 칩">
               <Input type="number" min={1} value={addon} onChange={(e) => setAddon(e.target.value)} />
             </Field>
             <Btn variant="gold" onClick={addAddon}>애드온 추가</Btn>
           </div>
-          <p className="text-[13px] text-mut mt-1.5">즉시 반영됩니다. 전광판 TOTAL STACKS에 합산됩니다.</p>
+          <p className="text-[15px] text-mut mt-1.5">즉시 반영됩니다. 전광판 TOTAL STACKS에 합산됩니다.</p>
         </div>
 
         <Field label="공지사항 (전광판 NOTICE)">

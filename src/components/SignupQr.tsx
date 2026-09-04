@@ -22,12 +22,12 @@ export function SignupQrModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
         <div className="text-center">
           <div className="font-bold">{storeName}</div>
-          <p className="text-[14px] text-mut mt-1 leading-relaxed">
+          <p className="text-[16px] text-mut mt-1 leading-relaxed">
             {hasSupabase
               ? <>손님이 스캔하면 회원가입 페이지로 연결됩니다.<br />가입 즉시 회원번호와 포인트 지갑이 생깁니다.</>
               : <>클라우드 모드를 켜면 이 QR이 회원가입 페이지로 연결됩니다.<br />지금은 공개 랭킹으로 연결됩니다.</>}
           </p>
-          <code className="block mt-2 text-[12px] text-faint break-all">{url}</code>
+          <code className="block mt-2 text-[14px] text-faint break-all">{url}</code>
         </div>
         <div className="flex gap-2">
           <Btn sm onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>링크 복사</Btn>

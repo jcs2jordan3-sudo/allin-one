@@ -60,10 +60,10 @@ function Shell({ title, sub, children }: { title: string; sub?: string; children
           ♠ ALL-IN <span className="text-mint">ONE</span>
         </div>
         <h1 className="text-center font-bold text-xl mt-3">{title}</h1>
-        {sub && <p className="text-center text-[14px] text-mut mt-1.5 leading-relaxed">{sub}</p>}
+        {sub && <p className="text-center text-[16px] text-mut mt-1.5 leading-relaxed">{sub}</p>}
         <div className="mt-6">{children}</div>
         <div className="mt-6 text-center">
-          <Link to="/rank" className="text-[13px] text-faint hover:text-mut">공개 랭킹 보기</Link>
+          <Link to="/rank" className="text-[15px] text-faint hover:text-mut">공개 랭킹 보기</Link>
         </div>
       </div>
     </div>
@@ -90,7 +90,7 @@ function LoginForm() {
     return (
       <Shell title="직원 가입" sub="대표가 콘솔에서 등록한 이메일로 가입하면 자동으로 연결됩니다.">
         <SignupForm />
-        <button onClick={() => setMode('login')} className="mt-4 w-full text-[13px] text-mut hover:text-ink">이미 계정이 있어요 → 로그인</button>
+        <button onClick={() => setMode('login')} className="mt-4 w-full text-[15px] text-mut hover:text-ink">이미 계정이 있어요 → 로그인</button>
       </Shell>
     )
   }
@@ -107,7 +107,7 @@ function LoginForm() {
         {error && <div className="text-sm text-rose">{error}</div>}
         <Btn variant="primary" className="w-full" onClick={submit} disabled={busy}>{busy ? '로그인 중…' : '로그인'}</Btn>
       </div>
-      <div className="mt-4 flex items-center justify-between text-[13px]">
+      <div className="mt-4 flex items-center justify-between text-[15px]">
         <button onClick={() => setMode('signup')} className="text-mut hover:text-ink">초대받은 직원이에요 → 가입</button>
         <Link to="/reset" className="text-mut hover:text-ink">비밀번호 재설정</Link>
       </div>

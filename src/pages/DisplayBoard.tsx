@@ -60,7 +60,7 @@ export default function DisplayBoard() {
       <aside className="flex flex-col gap-3 max-lg:flex-row max-lg:flex-wrap">
         {stats.map((s) => (
           <div key={s.label} className="bg-black/40 border border-white/8 rounded-2xl px-4 py-3.5 backdrop-blur max-lg:flex-1 max-lg:min-w-36">
-            <div className="text-[11px] font-bold tracking-[0.18em] text-white/40">{s.label}</div>
+            <div className="text-[13px] font-bold tracking-[0.18em] text-white/40">{s.label}</div>
             <div className={`mt-1 text-xl font-extrabold num ${s.tone ?? ''}`}>{s.value}</div>
           </div>
         ))}
@@ -161,12 +161,12 @@ export default function DisplayBoard() {
               <div className="bg-white p-2.5 rounded-xl ring-4 ring-mint/40">
                 <QRCodeSVG value={absUrl(`/g/${game.joinCode}`)} size={128} />
               </div>
-              <span className="text-[13px] font-bold text-mint tracking-wide">스캔하고 포인트로 바인</span>
+              <span className="text-[15px] font-bold text-mint tracking-wide">스캔하고 포인트로 바인</span>
               <div className="flex items-center gap-2 pt-1 border-t border-white/8 w-full justify-center">
                 <div className="bg-white p-1 rounded-md">
                   <QRCodeSVG value={signupUrl} size={44} />
                 </div>
-                <span className="text-[11px] text-white/45 leading-tight">처음이면<br />회원가입</span>
+                <span className="text-[13px] text-white/45 leading-tight">처음이면<br />회원가입</span>
               </div>
             </>
           ) : (
@@ -174,13 +174,13 @@ export default function DisplayBoard() {
               <div className="bg-white p-2.5 rounded-xl">
                 <QRCodeSVG value={absUrl('/rank')} size={110} />
               </div>
-              <span className="text-[12px] text-white/40">{closed && hasSupabase ? '레지 마감 · 스캔하고 랭킹 확인' : '스캔하고 랭킹 확인'}</span>
+              <span className="text-[14px] text-white/40">{closed && hasSupabase ? '레지 마감 · 스캔하고 랭킹 확인' : '스캔하고 랭킹 확인'}</span>
             </>
           )}
         </div>
         <button
           onClick={fullscreen}
-          className="text-[13px] text-white/40 hover:text-white/80 py-1"
+          className="text-[15px] text-white/40 hover:text-white/80 py-1"
         >
           ⛶ 전체화면 전환
         </button>

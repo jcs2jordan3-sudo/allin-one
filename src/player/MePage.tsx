@@ -105,7 +105,7 @@ export default function MePage() {
   return (
     <PlayerShell
       storeName={storeName}
-      right={<button onClick={() => signOut()} className="text-[13px] text-mut hover:text-ink">로그아웃</button>}
+      right={<button onClick={() => signOut()} className="text-[15px] text-mut hover:text-ink">로그아웃</button>}
     >
       {/* 프로필 */}
       <Card className="p-5">
@@ -116,24 +116,24 @@ export default function MePage() {
               <span className="font-extrabold text-lg truncate">{m.nickname}</span>
               <button onClick={() => setEditOpen(true)} className="text-mut hover:text-mint text-sm" aria-label="프로필 수정">✎</button>
             </div>
-            <div className="text-[13px] text-mut">회원번호 <span className="text-ink font-bold num text-base">{m.no}</span></div>
+            <div className="text-[15px] text-mut">회원번호 <span className="text-ink font-bold num text-base">{m.no}</span></div>
           </div>
           <div className="text-right">
-            <div className="text-[11px] font-bold tracking-widest text-faint">RP</div>
+            <div className="text-[13px] font-bold tracking-widest text-faint">RP</div>
             <div className="text-xl font-extrabold num text-mint">{fmtNum(m.rp)}</div>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
           {(['P', 'S', 'V'] as const).map((c) => (
             <div key={c} className="bg-surface2/60 border border-line rounded-xl px-3 py-2.5 text-center">
-              <div className="text-[11px] font-bold tracking-widest text-faint">{CURRENCY_LABEL[c]}</div>
+              <div className="text-[13px] font-bold tracking-widest text-faint">{CURRENCY_LABEL[c]}</div>
               <div className={`mt-0.5 text-lg font-extrabold num ${c === 'P' ? 'text-gold' : c === 'S' ? 'text-sky' : 'text-viol'}`}>
-                {fmtNum(m.balances[c])}<span className="text-[12px] ml-0.5">{CURRENCY_UNIT[c]}</span>
+                {fmtNum(m.balances[c])}<span className="text-[14px] ml-0.5">{CURRENCY_UNIT[c]}</span>
               </div>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[12px] text-faint leading-relaxed">
+        <p className="mt-3 text-[14px] text-faint leading-relaxed">
           포인트 충전은 카운터에서 현금·카드로 결제하면 직원이 넣어드립니다. 회원번호를 알려주세요.
         </p>
       </Card>
@@ -141,16 +141,16 @@ export default function MePage() {
       {/* 체크인 · 이용권 */}
       <Card className="p-4 flex items-center gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold tracking-widest text-faint">매장 체크인</div>
+          <div className="text-[13px] font-bold tracking-widest text-faint">매장 체크인</div>
           {wait ? (
             <div className="font-bold">
               {wait.status === 'seated' ? `TABLE ${wait.table} · ${wait.seat}번 좌석 착석 중` : WAIT_STATUS_LABEL[wait.status]}
-              {wait.status === 'called' && <span className="text-gold text-[13px] ml-2">직원이 호출했어요!</span>}
+              {wait.status === 'called' && <span className="text-gold text-[15px] ml-2">직원이 호출했어요!</span>}
             </div>
           ) : (
             <div className="text-mut text-sm">체크인 전 · 좌석 QR을 스캔하면 자리에 체크인됩니다</div>
           )}
-          {waitErr && <div className="text-[13px] text-rose mt-1">{waitErr}</div>}
+          {waitErr && <div className="text-[15px] text-rose mt-1">{waitErr}</div>}
         </div>
         {wait
           ? <Btn sm variant="ghost" onClick={doCheckout} disabled={waitBusy}>체크아웃</Btn>
@@ -160,7 +160,7 @@ export default function MePage() {
           if (valid.length === 0) return null
           const names = [...new Set(valid.map((p) => passes.types.find((t) => t.id === p.typeId)?.name ?? '이용권'))]
           return (
-            <div className="w-full text-[13px] text-mut border-t border-line pt-2 mt-1">
+            <div className="w-full text-[15px] text-mut border-t border-line pt-2 mt-1">
               🎫 이용권 <span className="text-ink font-semibold num">{valid.length}장</span> · {names.join(', ')}
             </div>
           )
@@ -169,7 +169,7 @@ export default function MePage() {
 
       {/* 진행 중인 게임 */}
       <section>
-        <h2 className="text-[15px] font-bold mb-2">진행 중인 게임</h2>
+        <h2 className="text-[17px] font-bold mb-2">진행 중인 게임</h2>
         {open.length === 0 ? (
           <Card className="p-5 text-center text-sm text-mut">지금 진행 중인 게임이 없습니다.</Card>
         ) : (
@@ -183,7 +183,7 @@ export default function MePage() {
                   <Card className="px-4 py-3.5 flex items-center gap-3 hover:border-mint/40 transition-colors">
                     <div className="min-w-0 flex-1">
                       <div className="font-bold truncate">{g.name}</div>
-                      <div className="text-[13px] text-mut num">
+                      <div className="text-[15px] text-mut num">
                         {g.entries.filter((e) => e.status === 'playing').length}명 참여 중
                         {mineEntry && ` · 내 좌석 T${mineEntry.table}-${mineEntry.seat}`}
                       </div>
@@ -200,15 +200,15 @@ export default function MePage() {
       {/* 내 참가 기록 */}
       {mine.length > 0 && (
         <section>
-          <h2 className="text-[15px] font-bold mb-2">내 참가 기록</h2>
+          <h2 className="text-[17px] font-bold mb-2">내 참가 기록</h2>
           <div className="space-y-1.5">
             {mine.slice(0, 10).map((g) => {
               const e = g.entries[0]
               return (
                 <div key={g.id} className="px-4 py-2.5 bg-surface2/50 rounded-xl text-sm flex items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold truncate">{g.name}{g.cancelled && <span className="text-rose text-[12px] ml-1">취소</span>}</div>
-                    <div className="text-[12px] text-faint num">{fmtDateTime(g.startedAt)}</div>
+                    <div className="font-semibold truncate">{g.name}{g.cancelled && <span className="text-rose text-[14px] ml-1">취소</span>}</div>
+                    <div className="text-[14px] text-faint num">{fmtDateTime(g.startedAt)}</div>
                   </div>
                   <span className={`num font-bold ${e?.rank === 1 ? 'text-gold' : 'text-mut'}`}>
                     {g.status !== 'ended' ? (e?.status === 'playing' ? '참여 중' : '탈락') : e?.rank ? `${e.rank}위` : '—'}
@@ -222,7 +222,7 @@ export default function MePage() {
 
       {/* 최근 거래 */}
       <section>
-        <h2 className="text-[15px] font-bold mb-2">최근 거래</h2>
+        <h2 className="text-[17px] font-bold mb-2">최근 거래</h2>
         {me.ledger.length === 0 ? (
           <Card className="p-5 text-center text-sm text-mut">거래 내역이 없습니다.</Card>
         ) : (
@@ -236,7 +236,7 @@ export default function MePage() {
                       {gain ? '+' : '−'}{fmtNum(l.amount)}{CURRENCY_UNIT[l.currency]}
                     </span>
                     <span className="text-mut truncate">{l.reason ?? '—'}</span>
-                    <span className="ml-auto text-[12px] text-faint num shrink-0">{fmtDateTime(l.ts)}</span>
+                    <span className="ml-auto text-[14px] text-faint num shrink-0">{fmtDateTime(l.ts)}</span>
                   </div>
                 </div>
               )
@@ -297,7 +297,7 @@ function ProfileModal({ me, onClose }: { me: MyInfo; onClose: () => void }) {
           <Btn variant="primary" onClick={submit} disabled={busy}>{busy ? '저장 중…' : '저장'}</Btn>
         </div>
         <div className="border-t border-line pt-4">
-          <div className="text-[14px] font-bold mb-2">비밀번호 변경</div>
+          <div className="text-[16px] font-bold mb-2">비밀번호 변경</div>
           <PasswordChange compact />
         </div>
       </div>

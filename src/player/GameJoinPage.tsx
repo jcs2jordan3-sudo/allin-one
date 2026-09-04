@@ -99,13 +99,13 @@ export default function GameJoinPage() {
   return (
     <PlayerShell
       storeName={data.storeName}
-      right={session ? <Link to="/me" className="text-[13px] text-mut hover:text-ink">내 정보</Link> : undefined}
+      right={session ? <Link to="/me" className="text-[15px] text-mut hover:text-ink">내 정보</Link> : undefined}
     >
       {/* 게임 상태 */}
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[12px] font-semibold tracking-widest text-faint uppercase">{game.gameSetName}</div>
+            <div className="text-[14px] font-semibold tracking-widest text-faint uppercase">{game.gameSetName}</div>
             <h1 className="text-xl font-extrabold tracking-tight truncate">{game.name}</h1>
           </div>
           {ended ? <Badge tone="mut">종료</Badge> : scheduled ? <Badge tone="sky">예약</Badge> : closed ? <Badge tone="rose">레지 마감</Badge> : <Badge tone="mint">참여 가능</Badge>}
@@ -115,7 +115,7 @@ export default function GameJoinPage() {
           <Stat label="블라인드" value={pos.level.type === 'break' ? 'BREAK' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)}`} />
           <Stat label="PLAYERS" value={`${game.entries.filter((e) => e.status === 'playing').length}/${game.entries.length}`} />
         </div>
-        {game.notice && <div className="mt-3 text-[13px] text-gold bg-gold/10 border border-gold/25 rounded-xl px-3 py-2">{game.notice}</div>}
+        {game.notice && <div className="mt-3 text-[15px] text-gold bg-gold/10 border border-gold/25 rounded-xl px-3 py-2">{game.notice}</div>}
       </Card>
 
       {/* 성공 */}
@@ -129,7 +129,7 @@ export default function GameJoinPage() {
             {fmtNum(result.chips)}칩{result.earlyBirdChips ? ` + 얼리버드 ${fmtNum(result.earlyBirdChips)}칩` : ''} ·{' '}
             {CURRENCY_LABEL[result.currency]} {result.cost}{CURRENCY_UNIT[result.currency]} 결제
           </div>
-          <p className="mt-3 text-[13px] text-mut">좌석으로 이동해 딜러에게 이 화면을 보여주세요.</p>
+          <p className="mt-3 text-[15px] text-mut">좌석으로 이동해 딜러에게 이 화면을 보여주세요.</p>
           <Btn sm variant="ghost" className="mt-2" onClick={() => setResult(null)}>닫기</Btn>
         </Card>
       )}
@@ -138,7 +138,7 @@ export default function GameJoinPage() {
       {!session && !ended && (
         <Card className="p-5">
           <div className="font-bold mb-1">바인하려면 로그인하세요</div>
-          <p className="text-[13px] text-mut mb-4">처음이면 30초 만에 가입할 수 있어요. 가입 후 이 게임으로 바로 돌아옵니다.</p>
+          <p className="text-[15px] text-mut mb-4">처음이면 30초 만에 가입할 수 있어요. 가입 후 이 게임으로 바로 돌아옵니다.</p>
           <AuthForm storeId={data.storeId} defaultMode="login" onDone={() => { /* 역할 갱신 후 자동 렌더 */ }} />
         </Card>
       )}
@@ -166,8 +166,8 @@ export default function GameJoinPage() {
           <div className="flex items-center gap-3">
             <Avatar emoji={me.member.emoji} color={me.member.color} size={40} />
             <div className="min-w-0 flex-1">
-              <div className="font-bold truncate">{me.member.nickname} <span className="text-mut font-normal text-[13px] num">({me.member.no})</span></div>
-              <div className="text-[13px] text-mut num">
+              <div className="font-bold truncate">{me.member.nickname} <span className="text-mut font-normal text-[15px] num">({me.member.no})</span></div>
+              <div className="text-[15px] text-mut num">
                 {fmtNum(me.member.balances.P)}P · {fmtNum(me.member.balances.S)}S · {me.member.balances.V}장
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function GameJoinPage() {
           ) : (
             <>
               <div>
-                <div className="text-[13px] font-semibold text-mut mb-1.5">
+                <div className="text-[15px] font-semibold text-mut mb-1.5">
                   {round}회차 {BUYIN_TYPE_LABEL[type]} → <span className="text-gold num">{fmtNum(rule.chips)}칩</span>
                   {earlyBird && <span className="text-mint num"> + 얼리버드 {fmtNum(earlyBird.chips)}칩</span>}
                 </div>
@@ -208,7 +208,7 @@ export default function GameJoinPage() {
                         }`}
                       >
                         {CURRENCY_LABEL[c]}
-                        <span className="block text-[12px] font-normal num">
+                        <span className="block text-[14px] font-normal num">
                           {disabled ? '사용 불가' : `${cc}${CURRENCY_UNIT[c]} · 보유 ${fmtNum(bal)}`}
                         </span>
                       </button>
@@ -217,7 +217,7 @@ export default function GameJoinPage() {
                 </div>
               </div>
               {insufficient && (
-                <div className="text-[13px] text-rose">
+                <div className="text-[15px] text-rose">
                   {CURRENCY_LABEL[currency]} 잔액이 부족합니다. 카운터에서 현금·카드로 결제하면 직원이 포인트를 넣어드려요.
                 </div>
               )}
@@ -230,7 +230,7 @@ export default function GameJoinPage() {
               >
                 {busy ? '처리 중…' : `${CURRENCY_LABEL[currency]} ${cost ?? ''}${cost !== undefined ? CURRENCY_UNIT[currency] : ''}로 ${BUYIN_TYPE_LABEL[type]}하기`}
               </Btn>
-              <p className="text-[12px] text-faint leading-relaxed">
+              <p className="text-[14px] text-faint leading-relaxed">
                 누르는 즉시 참가비가 차감되고 좌석이 배정됩니다. 참가비는 매장 재화로만 결제되며 현금으로 환전되지 않습니다.
               </p>
             </>
@@ -246,7 +246,7 @@ export default function GameJoinPage() {
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="bg-surface2/60 border border-line rounded-xl px-2 py-2.5">
-      <div className="text-[11px] font-bold tracking-widest text-faint uppercase truncate">{label}</div>
+      <div className="text-[13px] font-bold tracking-widest text-faint uppercase truncate">{label}</div>
       <div className={`mt-0.5 text-lg font-extrabold num ${accent ? 'text-mint' : ''}`}>{value}</div>
     </div>
   )

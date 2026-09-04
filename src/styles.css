@@ -7,11 +7,11 @@
   --color-bg: #07090e;
   --color-surface: rgba(255, 255, 255, 0.045);
   --color-surface2: rgba(255, 255, 255, 0.07);
-  --color-line: rgba(255, 255, 255, 0.09);
-  --color-line2: rgba(255, 255, 255, 0.17);
-  --color-ink: #edf1f6;
-  --color-mut: #94a1b0;
-  --color-faint: #64707f;
+  --color-line: rgba(255, 255, 255, 0.12);
+  --color-line2: rgba(255, 255, 255, 0.22);
+  --color-ink: #f3f6fa;
+  --color-mut: #bcc7d3; /* 보조 텍스트 — 레퍼런스 수준 대비 (AA 이상) */
+  --color-faint: #8d9aaa; /* 가장 약한 텍스트도 읽히도록 */
   --color-mint: #2fd6a0;
   --color-mintink: #062d21;
   --color-gold: #e9bb56;
@@ -24,7 +24,7 @@
 @layer base {
   html {
     color-scheme: dark;
-    font-size: 17px; /* rem 기반 타이포 전체 +6% — 매장 환경 가독성 */
+    font-size: 18px; /* rem 기반 타이포 전체 상향 — 매장 환경(거리·조명) 가독성 */
   }
   body {
     @apply text-ink font-sans antialiased;

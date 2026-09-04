@@ -74,7 +74,7 @@ export default function PointsTab() {
       <section>
         <SectionTitle
           right={
-            <label className="flex items-center gap-2 text-[14px] text-mut cursor-pointer">
+            <label className="flex items-center gap-2 text-[16px] text-mut cursor-pointer">
               <input
                 type="checkbox"
                 checked={includeLeft}
@@ -90,7 +90,7 @@ export default function PointsTab() {
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[13px] text-mut border-b border-line">
+              <tr className="text-left text-[15px] text-mut border-b border-line">
                 <th className="px-4 py-3 font-semibold">지점</th>
                 <th className="px-4 py-3 font-semibold text-right">포인트</th>
                 <th className="px-4 py-3 font-semibold text-right">음료권</th>
@@ -121,11 +121,11 @@ export default function PointsTab() {
             />
           }
         >
-          포인트 거래내역 <span className="text-[13px] text-mut font-normal ml-1">증감은 지점 잔액 기준</span>
+          포인트 거래내역 <span className="text-[15px] text-mut font-normal ml-1">증감은 지점 잔액 기준</span>
         </SectionTitle>
         <div className="mb-3 flex items-center gap-3 flex-wrap">
           <DateRangePicker value={st.ledgerRange} onChange={(r) => { st.setLedgerRange(r); setPage(1) }} />
-          <span className="text-[13px] text-mut num">{rows.length}건</span>
+          <span className="text-[15px] text-mut num">{rows.length}건</span>
         </div>
         {pageRows.length === 0 ? (
           <Empty>거래내역이 없습니다.</Empty>
@@ -172,13 +172,13 @@ function LedgerRow({ entry: l, expanded, onToggle }: { entry: LedgerEntry; expan
           {nameOf(l.from)} <span className="text-mut">→</span> {nameOf(l.to)}
         </span>
         <span className="ml-auto flex items-center gap-3">
-          <span className="text-[14px] text-mut num">잔여 {fmtNum(l.storeBalanceAfter)}{CURRENCY_UNIT[l.currency]}</span>
+          <span className="text-[16px] text-mut num">잔여 {fmtNum(l.storeBalanceAfter)}{CURRENCY_UNIT[l.currency]}</span>
           <span className={`text-mut text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}>▾</span>
         </span>
-        <span className="w-full text-[13px] text-faint num">{fmtDateTime(l.ts)}</span>
+        <span className="w-full text-[15px] text-faint num">{fmtDateTime(l.ts)}</span>
       </button>
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-line/60 grid sm:grid-cols-3 gap-2 text-[14px] text-mut">
+        <div className="mt-3 pt-3 border-t border-line/60 grid sm:grid-cols-3 gap-2 text-[16px] text-mut">
           <div>사유 · <span className="text-ink">{l.reason ?? '—'}</span></div>
           <div>처리자 · <span className="text-ink">{l.operator ?? '시스템'}</span></div>
           <div>연관 게임 · <span className="text-ink">{game?.name ?? '—'}</span></div>
@@ -204,7 +204,7 @@ function ChargeModal({ c, onClose }: { c: Currency; onClose: () => void }) {
 
   return (
     <Modal open onClose={onClose} title={`${CURRENCY_LABEL[c]} 충전 (지점 지갑)`}>
-      <p className="text-[14px] text-mut leading-relaxed mb-4">
+      <p className="text-[16px] text-mut leading-relaxed mb-4">
         본사 발행분·현금 매입분을 지점 지갑에 추가합니다. 모든 충전은 거래내역(본사 → 지점)에 기록됩니다.
       </p>
       <div className="grid grid-cols-2 gap-3">
@@ -274,8 +274,8 @@ function TransferModal({ c, mode, onClose }: { c: Currency; mode: 'send' | 'recl
             >
               <Avatar emoji={m.emoji} color={m.color} size={26} />
               <span className="text-sm font-semibold">{m.nickname}</span>
-              <span className="text-[13px] text-mut num">({m.no})</span>
-              <span className="ml-auto text-[13px] text-mut num">보유 {fmtNum(m.balances[c])}{CURRENCY_UNIT[c]}</span>
+              <span className="text-[15px] text-mut num">({m.no})</span>
+              <span className="ml-auto text-[15px] text-mut num">보유 {fmtNum(m.balances[c])}{CURRENCY_UNIT[c]}</span>
             </button>
           ))}
         </div>
@@ -293,7 +293,7 @@ function TransferModal({ c, mode, onClose }: { c: Currency; mode: 'send' | 'recl
               key={p}
               type="button"
               onClick={() => setReason(p)}
-              className={`px-2.5 py-1 rounded-full border text-[13px] transition-colors ${
+              className={`px-2.5 py-1 rounded-full border text-[15px] transition-colors ${
                 reason === p ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
               }`}
             >

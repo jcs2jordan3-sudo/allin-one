@@ -12,7 +12,7 @@ function Shell({ title, sub, children }: { title: string; sub?: string; children
       <div className="card w-full max-w-sm p-8">
         <div className="font-extrabold tracking-tight text-lg text-center mb-1">♠ ALL-IN <span className="text-mint">ONE</span></div>
         <h1 className="text-center font-bold text-xl mt-3">{title}</h1>
-        {sub && <p className="text-center text-[14px] text-mut mt-1.5 leading-relaxed">{sub}</p>}
+        {sub && <p className="text-center text-[16px] text-mut mt-1.5 leading-relaxed">{sub}</p>}
         <div className="mt-6">{children}</div>
       </div>
     </div>
@@ -46,7 +46,7 @@ export function ResetRequestPage() {
         {msg && <div className={`text-sm leading-relaxed ${msg.ok ? 'text-mint' : 'text-rose'}`}>{msg.text}</div>}
         <Btn variant="primary" className="w-full" onClick={submit} disabled={busy || msg?.ok}>{busy ? '보내는 중…' : '재설정 메일 보내기'}</Btn>
       </div>
-      <div className="mt-5 flex justify-between text-[13px]">
+      <div className="mt-5 flex justify-between text-[15px]">
         <Link to="/" className="text-mut hover:text-ink">직원 로그인</Link>
         <Link to="/join" className="text-mut hover:text-ink">회원 로그인</Link>
       </div>

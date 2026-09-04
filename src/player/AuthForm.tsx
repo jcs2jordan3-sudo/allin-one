@@ -117,11 +117,11 @@ export default function AuthForm({
         {busy ? '처리 중…' : mode === 'signup' ? '가입하고 시작하기' : '로그인'}
       </Btn>
       {mode === 'signup' ? (
-        <p className="text-[12px] text-faint leading-relaxed">
+        <p className="text-[14px] text-faint leading-relaxed">
           만 19세 이상만 가입할 수 있습니다. 직원이 미리 등록해 둔 회원은 같은 전화번호로 가입하면 자동으로 연결됩니다.
         </p>
       ) : (
-        <div className="text-center"><Link to="/reset" className="text-[13px] text-mut hover:text-ink">비밀번호를 잊으셨나요?</Link></div>
+        <div className="text-center"><Link to="/reset" className="text-[15px] text-mut hover:text-ink">비밀번호를 잊으셨나요?</Link></div>
       )}
     </div>
   )

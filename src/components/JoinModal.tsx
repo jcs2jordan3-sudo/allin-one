@@ -71,8 +71,8 @@ export default function JoinModal({ game, open, onClose }: { game: Game; open: b
             >
               <Avatar emoji={m.emoji} color={m.color} size={28} />
               <span className="text-sm font-semibold">{m.nickname}</span>
-              <span className="text-[13px] text-mut num">({m.no})</span>
-              <span className="ml-auto text-[13px] text-mut num">
+              <span className="text-[15px] text-mut num">({m.no})</span>
+              <span className="ml-auto text-[15px] text-mut num">
                 {m.balances.P.toLocaleString()}P · {m.balances.S.toLocaleString()}S · {m.balances.V}장
               </span>
             </button>
@@ -81,7 +81,7 @@ export default function JoinModal({ game, open, onClose }: { game: Game; open: b
 
         {rule ? (
           <div>
-            <div className="text-[13px] font-semibold text-mut mb-1.5">
+            <div className="text-[15px] font-semibold text-mut mb-1.5">
               결제 재화 선택 · {round}회차 {BUYIN_TYPE_LABEL[type]} → <span className="text-gold num">{rule.chips.toLocaleString()}칩</span>
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -98,7 +98,7 @@ export default function JoinModal({ game, open, onClose }: { game: Game; open: b
                     }`}
                   >
                     {CURRENCY_LABEL[c]}
-                    <span className="block text-[13px] font-normal num">
+                    <span className="block text-[15px] font-normal num">
                       {disabled ? '사용 불가' : `${cost}${CURRENCY_UNIT[c]}`}
                     </span>
                   </button>

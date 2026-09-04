@@ -19,7 +19,7 @@ export default function PlayerShell({
         <div className="max-w-md mx-auto px-4 h-13 flex items-center justify-between py-3">
           <Link to="/me" className="flex items-center gap-2 min-w-0">
             <span className="w-7 h-7 rounded-lg bg-mint/15 border border-mint/30 text-mint flex items-center justify-center text-sm font-black">♠</span>
-            <span className="font-extrabold tracking-tight text-[15px] truncate">
+            <span className="font-extrabold tracking-tight text-[17px] truncate">
               {storeName || <>ALL-IN <span className="text-mint">ONE</span></>}
             </span>
           </Link>

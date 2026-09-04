@@ -40,13 +40,13 @@ export default function QrSheet() {
             <div key={s} className="border-2 border-neutral-900 rounded-2xl p-4 flex flex-col items-center gap-2 break-inside-avoid">
               <QRCodeSVG value={`${signupUrl}${signupUrl.includes('?') ? '&' : '?'}table=${table.no}&seat=${s}`} size={132} />
               <div className="font-black text-lg tracking-tight">T{table.no} · {s}번 좌석</div>
-              <div className="text-[12px] text-neutral-500 text-center leading-snug">
+              <div className="text-[14px] text-neutral-500 text-center leading-snug">
                 스캔 후 회원 인증하고<br />게임에 참가하세요
               </div>
             </div>
           ))}
         </div>
-        <footer className="mt-8 text-[12px] text-neutral-400 print:mt-4">
+        <footer className="mt-8 text-[14px] text-neutral-400 print:mt-4">
           QR은 좌석 위치 식별용이며, 참가·재화 처리는 스캔 후 본인 인증을 거쳐 진행됩니다.
         </footer>
       </div>

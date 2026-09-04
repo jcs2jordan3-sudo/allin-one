@@ -502,7 +502,12 @@ export function createLocalStore() {
       },
     ),
   )
-  if (store.persist.hasHydrated()) useReady.setState({ ready: true })
-  store.persist.onFinishHydration(() => useReady.setState({ ready: true }))
+  const markReady = () => {
+    useReady.setState({ ready: true })
+    // 첫 방문(저장분 없음)이면 시드를 바로 저장 — 새 탭(전광판)에서 다른 ID로 재시드되는 것을 방지
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem(STORE_KEY)) store.setState({})
+  }
+  if (store.persist.hasHydrated()) markReady()
+  store.persist.onFinishHydration(markReady)
   return store
 }

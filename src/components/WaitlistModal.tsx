@@ -60,7 +60,7 @@ export default function WaitlistModal({ open, onClose }: { open: boolean; onClos
         />
         <Btn sm variant="primary" onClick={() => setAddOpen(true)}>+ 대기 추가</Btn>
       </div>
-      <p className="text-[13px] text-mut mb-3">
+      <p className="text-[15px] text-mut mb-3">
         손님이 매장 QR·좌석 QR을 스캔하면 자동으로 올라옵니다. 셀프 바인 시 체크인한 좌석이 비어 있으면 그 자리에 배정됩니다.
       </p>
       {error && <div className="text-sm text-rose mb-3">{error}</div>}
@@ -76,12 +76,12 @@ export default function WaitlistModal({ open, onClose }: { open: boolean; onClos
                 <Avatar emoji={n.emoji} color={n.color} size={30} />
                 <div className="min-w-0">
                   <div className="font-semibold flex items-center gap-2">
-                    {n.label} <span className="text-[13px] text-mut font-normal num">{n.sub}</span>
+                    {n.label} <span className="text-[15px] text-mut font-normal num">{n.sub}</span>
                     <Badge tone={w.source === 'qr' ? 'mint' : 'mut'}>{w.source === 'qr' ? 'QR' : '직원'}</Badge>
                     {w.status === 'called' && <Badge tone="gold">호출됨</Badge>}
                     {tab === 'done' && <Badge tone={w.status === 'noshow' ? 'rose' : 'mut'}>{WAIT_STATUS_LABEL[w.status]}</Badge>}
                   </div>
-                  <div className="text-[13px] text-mut num">
+                  <div className="text-[15px] text-mut num">
                     {tab === 'seated' && w.table ? `TABLE ${w.table} · ${w.seat}번 좌석 · ` : ''}
                     {tab === 'done' ? fmtDateTime(w.endedAt ?? w.arrivedAt) : `도착 ${ago(w.arrivedAt, now)}`}
                     {w.note && <span className="ml-2 text-faint">· {w.note}</span>}
@@ -160,7 +160,7 @@ function AddWaitModal({ onClose }: { onClose: () => void }) {
                 >
                   <Avatar emoji={m.emoji} color={m.color} size={26} />
                   <span className="text-sm font-semibold">{m.nickname}</span>
-                  <span className="text-[13px] text-mut num">({m.no})</span>
+                  <span className="text-[15px] text-mut num">({m.no})</span>
                 </button>
               ))}
             </div>
