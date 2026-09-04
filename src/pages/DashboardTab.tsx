@@ -196,63 +196,64 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
 
   return (
     <Card className="p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-2xl font-bold tracking-tight">{g.name}</h3>
-            {scheduled ? (
-              <Badge tone="sky">예약됨 · {fmtDateTime(g.startedAt)} 시작</Badge>
-            ) : closed ? (
-              <Badge tone="rose">레지 마감</Badge>
-            ) : (
-              <Badge tone="mint">참여 가능</Badge>
-            )}
-            {g.status === 'paused' && <Badge tone="gold">일시정지 중</Badge>}
-            {!scheduled && g.status !== 'ended' && elapsed > 12 * 3_600_000 && (
-              <Badge tone="rose">12시간 초과 — 종료 확인 필요</Badge>
-            )}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-base text-mut">
-            <span className="inline-flex items-center gap-1.5">
-              <Badge tone="gold">{pos.level.label}</Badge>
-              <span className="num text-ink font-semibold">
-                {pos.level.type === 'break' ? '휴식' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
-              </span>
-            </span>
-            <span className="num">📍 TABLE {g.tables.join('·')}</span>
-            <span className="num">👥 {playing}/{capacity}</span>
-            <span className="num">⏱ {fmtClock(elapsed)}</span>
-            <span>
-              참가 비용 <span className="text-gold font-semibold">{costText}</span>
-            </span>
-          </div>
+      {/* 1행: 제목·상태 배지 ─ 우측 끝에 타이머 제어 (한 줄 고정, 폭이 좁아도 버튼은 내려가지 않음) */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
+          <h3 className="text-2xl font-bold tracking-tight">{g.name}</h3>
+          {scheduled ? (
+            <Badge tone="sky">예약됨 · {fmtDateTime(g.startedAt)} 시작</Badge>
+          ) : closed ? (
+            <Badge tone="rose">레지 마감</Badge>
+          ) : (
+            <Badge tone="mint">참여 가능</Badge>
+          )}
+          {g.status === 'paused' && <Badge tone="gold">일시정지 중</Badge>}
+          {!scheduled && g.status !== 'ended' && elapsed > 12 * 3_600_000 && (
+            <Badge tone="rose">12시간 초과 — 종료 확인 필요</Badge>
+          )}
         </div>
-        <div className="flex flex-col gap-2 shrink-0 items-end">
-          {/* 타이머 제어 — 카드 우측 상단 */}
+        <div className="shrink-0">
           {g.status === 'paused' ? (
-            <Btn sm variant="primary" onClick={() => resumeGame(g.id)} className="min-w-28" aria-label="재개">
+            <Btn sm variant="primary" onClick={() => resumeGame(g.id)} className="min-w-28 whitespace-nowrap" aria-label="재개">
               ▶ 재개
             </Btn>
           ) : (
-            <Btn sm variant="danger" onClick={() => pauseGame(g.id)} className="min-w-28" aria-label="일시정지">
+            <Btn sm variant="danger" onClick={() => pauseGame(g.id)} className="min-w-28 whitespace-nowrap" aria-label="일시정지">
               ⏸ 일시정지
             </Btn>
           )}
-          <div className="flex gap-2">
-            <Btn sm onClick={() => setBalanceOpen(true)}>밸런싱</Btn>
-            <Btn sm onClick={() => setJoinOpen(true)}>참가 등록</Btn>
-            <Link to={`/game/${g.id}`}><Btn sm>게임 관리</Btn></Link>
-          </div>
-          <div className="flex gap-2">
-            <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
-            {hasSupabase && g.joinCode && <Btn sm onClick={() => setQrOpen(true)}>바인 QR</Btn>}
-            <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
-            <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
-            <a href={appUrl(`/display/${g.id}`)} target="_blank" rel="noreferrer">
-              <Btn sm variant="gold">타이머</Btn>
-            </a>
-          </div>
         </div>
+      </div>
+
+      {/* 2행: 진행 정보 */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-base text-mut">
+        <span className="inline-flex items-center gap-1.5">
+          <Badge tone="gold">{pos.level.label}</Badge>
+          <span className="num text-ink font-semibold">
+            {pos.level.type === 'break' ? '휴식' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
+          </span>
+        </span>
+        <span className="num">📍 TABLE {g.tables.join('·')}</span>
+        <span className="num">👥 {playing}/{capacity}</span>
+        <span className="num">⏱ {fmtClock(elapsed)}</span>
+        <span>
+          참가 비용 <span className="text-gold font-semibold">{costText}</span>
+        </span>
+      </div>
+
+      {/* 3행: 액션 — 한 줄, 좁으면 자연스럽게 다음 줄로 */}
+      <div className="mt-4 pt-4 border-t border-line flex flex-wrap items-center gap-2">
+        <Btn sm onClick={() => setBalanceOpen(true)}>밸런싱</Btn>
+        <Btn sm onClick={() => setJoinOpen(true)}>참가 등록</Btn>
+        <Link to={`/game/${g.id}`}><Btn sm>게임 관리</Btn></Link>
+        <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
+        {hasSupabase && g.joinCode && <Btn sm onClick={() => setQrOpen(true)}>바인 QR</Btn>}
+        <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
+        <span className="flex-1" />
+        <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
+        <a href={appUrl(`/display/${g.id}`)} target="_blank" rel="noreferrer">
+          <Btn sm variant="gold">타이머</Btn>
+        </a>
       </div>
       <div className="mt-3 text-right">
         <Link to={`/game/${g.id}`} className="text-[16px] text-mut hover:text-mint">자세히 보기 ›</Link>
