@@ -5,10 +5,11 @@ import { createPortal } from 'react-dom'
 
 type BtnVariant = 'primary' | 'soft' | 'ghost' | 'danger' | 'gold'
 
+// 모든 변형에 1px 테두리(투명 포함)를 두어 변형이 바뀌어도 높이가 같게 유지 (정지↔재개 전환 시 레이아웃 흔들림 방지)
 const btnStyles: Record<BtnVariant, string> = {
-  primary: 'bg-mint text-mintink font-semibold hover:brightness-110',
+  primary: 'bg-mint text-mintink font-semibold border border-transparent hover:brightness-110',
   soft: 'bg-surface2 text-ink border border-line2 hover:border-mint/50 hover:text-mint',
-  ghost: 'text-mut hover:text-ink hover:bg-surface2',
+  ghost: 'text-mut border border-transparent hover:text-ink hover:bg-surface2',
   danger: 'bg-surface2 text-rose border border-line2 hover:border-rose/60',
   // 색 절제: 강조 버튼은 밝은 테두리의 무채색으로 (민트는 primary 하나만)
   gold: 'bg-surface2 text-ink font-semibold border border-line2 hover:border-mint/50 hover:text-mint',
