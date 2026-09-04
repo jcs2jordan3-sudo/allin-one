@@ -26,6 +26,7 @@ export default function GameDetail() {
   const [tab, setTab] = useState<SubTab>('플레이어 리스트')
   const [joinOpen, setJoinOpen] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const [confirmRegClose, setConfirmRegClose] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -170,9 +171,19 @@ export default function GameDetail() {
           {game.status === 'ended' && <li>지급된 프라이즈·RP가 회수됩니다</li>}
           <li>게임 기록은 '취소됨' 상태로 보존됩니다</li>
         </ul>
+        {cancelError && <div className="text-sm text-rose mt-3">{cancelError}</div>}
         <div className="flex justify-end gap-2 mt-5">
-          <Btn variant="ghost" onClick={() => setConfirmCancel(false)}>닫기</Btn>
-          <Btn variant="danger" onClick={() => { cancelGame(game.id); setConfirmCancel(false) }}>취소 실행</Btn>
+          <Btn variant="ghost" onClick={() => { setConfirmCancel(false); setCancelError(null) }}>닫기</Btn>
+          <Btn
+            variant="danger"
+            onClick={async () => {
+              const err = await cancelGame(game.id)
+              if (err) return setCancelError(err)
+              setConfirmCancel(false)
+            }}
+          >
+            취소 실행
+          </Btn>
         </div>
       </Modal>
     </div>

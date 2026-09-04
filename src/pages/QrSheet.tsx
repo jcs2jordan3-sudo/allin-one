@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { useStore } from '../store'
-import { absUrl } from '../lib/url'
+import { useSignupUrl } from '../components/SignupQr'
 
 /**
  * 테이블 좌석 QR 인쇄 시트 — 좌석에 부착해 셀프 체크인/참가 진입점으로 사용.
@@ -11,6 +11,7 @@ export default function QrSheet() {
   const { tableNo } = useParams()
   const storeName = useStore((s) => s.storeName)
   const table = useStore((s) => s.tables.find((t) => String(t.no) === tableNo))
+  const signupUrl = useSignupUrl()
 
   if (!table) {
     return <div className="min-h-screen bg-white text-black flex items-center justify-center">테이블을 찾을 수 없습니다.</div>
@@ -37,7 +38,7 @@ export default function QrSheet() {
         <div className="grid grid-cols-3 gap-6 print:grid-cols-3">
           {seats.map((s) => (
             <div key={s} className="border-2 border-neutral-900 rounded-2xl p-4 flex flex-col items-center gap-2 break-inside-avoid">
-              <QRCodeSVG value={absUrl(`/rank?table=${table.no}&seat=${s}`)} size={132} />
+              <QRCodeSVG value={`${signupUrl}${signupUrl.includes('?') ? '&' : '?'}table=${table.no}&seat=${s}`} size={132} />
               <div className="font-black text-lg tracking-tight">T{table.no} · {s}번 좌석</div>
               <div className="text-[12px] text-neutral-500 text-center leading-snug">
                 스캔 후 회원 인증하고<br />게임에 참가하세요

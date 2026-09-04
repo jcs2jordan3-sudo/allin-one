@@ -1,5 +1,8 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession, useStore, useSyncStatus, type SyncStatus } from '../store'
+import { hasSupabase } from '../lib/supabase'
+import { signOut, useAuth } from '../auth'
+import { STAFF_ROLE_LABEL } from '../types'
 import { appUrl } from '../lib/url'
 
 const SYNC_META: Record<SyncStatus, { label: string; dot: string; text: string }> = {
@@ -25,13 +28,24 @@ export default function ConsoleLayout() {
   const syncMeta = SYNC_META[sync]
   const lockPin = useStore((s) => s.lockPin)
   const lock = useSession((s) => s.lock)
+  const role = useAuth((s) => s.role)
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   const onLogout = () => {
+    if (hasSupabase) {
+      void signOut()
+      return
+    }
     if (lockPin) lock()
     else navigate('/admin') // PIN 미설정 시 잠금 설정 화면으로 안내
   }
+
+  const roleLabel = role.kind === 'staff' ? STAFF_ROLE_LABEL[role.role] : null
+  const logoutLabel = hasSupabase ? '로그아웃' : lockPin ? '잠금' : '로그아웃'
+  const logoutTitle = hasSupabase
+    ? '계정 로그아웃'
+    : lockPin ? '잠금 화면으로 전환' : '관리 탭에서 PIN을 설정하면 잠금이 활성화됩니다'
 
   return (
     <div className="min-h-screen">
@@ -52,7 +66,7 @@ export default function ConsoleLayout() {
               </span>
               <span
                 className={`hidden md:inline-flex items-center gap-1.5 text-[12px] font-semibold ${syncMeta.text}`}
-                title={sync === 'local' ? '.env.local에 Supabase 키를 설정하면 클라우드 동기화가 켜집니다' : undefined}
+                title={sync === 'local' ? '.env.local에 Supabase 키를 설정하면 클라우드 모드가 켜집니다 (SUPABASE_SETUP.md)' : undefined}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${syncMeta.dot}`} aria-hidden />
                 {syncMeta.label}
@@ -62,13 +76,12 @@ export default function ConsoleLayout() {
               <a href={appUrl('/rank')} target="_blank" rel="noreferrer" className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2">
                 공개 랭킹
               </a>
-              <span className="px-2.5 py-1.5 hidden sm:inline">{operatorName}</span>
-              <button
-                onClick={onLogout}
-                className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2"
-                title={lockPin ? '잠금 화면으로 전환' : '관리 탭에서 PIN을 설정하면 잠금이 활성화됩니다'}
-              >
-                {lockPin ? '잠금' : '로그아웃'}
+              <span className="px-2.5 py-1.5 hidden sm:inline">
+                {operatorName}
+                {roleLabel && <span className="text-faint ml-1">({roleLabel})</span>}
+              </span>
+              <button onClick={onLogout} className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2" title={logoutTitle}>
+                {logoutLabel}
               </button>
             </nav>
           </div>

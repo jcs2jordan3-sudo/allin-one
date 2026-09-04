@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { QRCodeSVG } from 'qrcode.react'
 import { selPlayingCount, selTotalChips, useStore } from '../store'
+import { hasSupabase } from '../lib/supabase'
 import type { Game, GameSet, TableInfo } from '../types'
 import { CURRENCY_UNIT } from '../types'
 import { fmtClock, gameElapsedMs, isRegClosed, isScheduled, levelAt, useNow } from '../lib/time'
@@ -166,6 +168,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
   const [balanceOpen, setBalanceOpen] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
 
   const elapsed = gameElapsedMs(g, now)
   const pos = levelAt(g.snapshot.levels, elapsed)
@@ -236,6 +239,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
           </div>
           <div className="flex gap-2">
             <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
+            {hasSupabase && g.joinCode && <Btn sm onClick={() => setQrOpen(true)}>바인 QR</Btn>}
             <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
             <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
             <a href={appUrl(`/display/${g.id}`)} target="_blank" rel="noreferrer">
@@ -252,7 +256,31 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
       <BalancingModal game={g} open={balanceOpen} onClose={() => setBalanceOpen(false)} />
       {confirmEnd && <EndGameModal game={g} open={confirmEnd} onClose={() => setConfirmEnd(false)} />}
       {editOpen && <GameEditModal game={g} open={editOpen} onClose={() => setEditOpen(false)} />}
+      {qrOpen && g.joinCode && <GameQrModal game={g} onClose={() => setQrOpen(false)} />}
     </Card>
+  )
+}
+
+/** 셀프 바인 QR — 전광판에도 같은 QR이 표시된다. 테이블 비치용 인쇄 */
+function GameQrModal({ game: g, onClose }: { game: Game; onClose: () => void }) {
+  const url = absUrl(`/g/${g.joinCode}`)
+  return (
+    <Modal open onClose={onClose} title={`${g.name} — 셀프 바인 QR`}>
+      <div className="flex flex-col items-center gap-4 py-2">
+        <div className="bg-white p-4 rounded-2xl">
+          <QRCodeSVG value={url} size={220} />
+        </div>
+        <p className="text-[14px] text-mut text-center leading-relaxed">
+          회원이 스캔하면 로그인 후 <b className="text-ink">포인트로 즉시 바인</b>됩니다 (좌석 자동 배정).
+          <br />레지 마감 후에는 바인이 거부됩니다. 현금·카드 결제는 직원이 포인트를 넣어준 뒤 이용하게 하세요.
+        </p>
+        <code className="text-[12px] text-faint break-all text-center">{url}</code>
+        <div className="flex gap-2">
+          <Btn sm onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>링크 복사</Btn>
+          <Btn sm onClick={() => window.print()}>인쇄</Btn>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -437,7 +465,7 @@ function CreateGameModal({ open, onClose }: { open: boolean; onClose: () => void
   const toggle = (no: number) =>
     setTables((prev) => (prev.includes(no) ? prev.filter((x) => x !== no) : [...prev, no]))
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) return setError('게임 이름을 입력해주세요.')
     let startAt: number | undefined
     if (when === 'later') {
@@ -449,7 +477,7 @@ function CreateGameModal({ open, onClose }: { open: boolean; onClose: () => void
       startAt = d.getTime()
       if (startAt <= Date.now()) return setError('시작 시간이 이미 지났습니다. 시간 또는 날짜를 확인해주세요.')
     }
-    const err = createGame(name.trim(), setId || gameSets[0]?.id, tables, {
+    const err = await createGame(name.trim(), setId || gameSets[0]?.id, tables, {
       startAt,
       notice: notice.trim() || undefined,
     })

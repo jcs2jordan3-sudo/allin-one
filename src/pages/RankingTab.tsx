@@ -131,8 +131,17 @@ function SettleModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [r1, setR1] = useState('100000')
   const [r2, setR2] = useState('50000')
   const [r3, setR3] = useState('30000')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   if (!season) return null
+  const submit = async () => {
+    setBusy(true)
+    const err = await settleSeason([+r1, +r2, +r3])
+    setBusy(false)
+    if (err) return setError(err)
+    onClose()
+  }
   return (
     <Modal open={open} onClose={onClose} title="시즌 정산 — 전송 및 환수">
       <p className="text-sm text-mut leading-relaxed mb-4">
@@ -143,9 +152,10 @@ function SettleModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         <Field label="2위 보상(P)"><Input type="number" value={r2} onChange={(e) => setR2(e.target.value)} /></Field>
         <Field label="3위 보상(P)"><Input type="number" value={r3} onChange={(e) => setR3(e.target.value)} /></Field>
       </div>
+      {error && <div className="text-sm text-rose mt-3">{error}</div>}
       <div className="flex justify-end gap-2 mt-5">
         <Btn variant="ghost" onClick={onClose}>취소</Btn>
-        <Btn variant="gold" onClick={() => { settleSeason([+r1, +r2, +r3]); onClose() }}>정산 실행</Btn>
+        <Btn variant="gold" onClick={submit} disabled={busy}>{busy ? '처리 중…' : '정산 실행'}</Btn>
       </div>
     </Modal>
   )

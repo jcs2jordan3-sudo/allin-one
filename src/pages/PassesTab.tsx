@@ -79,8 +79,8 @@ export default function PassesTab() {
   const memberOf = (id?: string) => st.members.find((m) => m.id === id)
   const typeOf = (id: string) => st.passTypes.find((t) => t.id === id)
 
-  const run = (fn: () => string | null) => {
-    const err = fn()
+  const run = async (fn: () => Promise<string | null>) => {
+    const err = await fn()
     setActionError(err)
     if (!err) {
       setExtendTarget(null)
@@ -324,10 +324,10 @@ function IssueModal({ onClose }: { onClose: () => void }) {
     .filter((m) => !q || m.nickname.includes(q) || m.no.includes(q))
   const selected = st.passTypes.find((t) => t.id === typeId)
 
-  const submit = () => {
+  const submit = async () => {
     if (!memberId) return setError('회원을 선택해주세요.')
     const n = parseInt(count, 10)
-    const err = st.issuePasses(typeId, memberId, n || 0)
+    const err = await st.issuePasses(typeId, memberId, n || 0)
     if (err) return setError(err)
     onClose()
   }
@@ -408,7 +408,7 @@ function TypesModal({ onClose }: { onClose: () => void }) {
             />
             <span className="text-sm text-mut">일</span>
             <div className="ml-auto">
-              <Btn sm variant="danger" onClick={() => setError(st.removePassType(t.id))}>삭제</Btn>
+              <Btn sm variant="danger" onClick={async () => setError(await st.removePassType(t.id))}>삭제</Btn>
             </div>
           </div>
         ))}

@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
 import { useStore } from '../store'
 import type { Currency, LedgerEntry } from '../types'
 import { CURRENCY_LABEL, CURRENCY_UNIT } from '../types'
 import { fmtDateTime, fmtNum, maskName } from '../lib/format'
 import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle, Segmented } from '../components/ui'
 import Avatar from '../components/Avatar'
-import { absUrl } from '../lib/url'
+import { SignupQrModal } from '../components/SignupQr'
 
 const PAGE_SIZE = 10
 
@@ -48,7 +47,7 @@ export default function PointsTab() {
   return (
     <div className="space-y-8">
       <section>
-        <SectionTitle right={<Btn sm onClick={() => setQrOpen(true)}>QR 생성</Btn>}>{st.storeName} 포인트</SectionTitle>
+        <SectionTitle right={<Btn sm onClick={() => setQrOpen(true)}>회원가입 QR</Btn>}>{st.storeName} 포인트</SectionTitle>
         <div className="space-y-3">
           {currencyMeta.map(({ c, tone, unit }) => (
             <Card key={c} className="p-5 flex flex-wrap items-center justify-between gap-4">
@@ -135,16 +134,7 @@ export default function PointsTab() {
 
       {transfer && <TransferModal c={transfer.c} mode={transfer.mode} onClose={() => setTransfer(null)} />}
       {chargeC && <ChargeModal c={chargeC} onClose={() => setChargeC(null)} />}
-      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="매장 가입 QR">
-        <div className="flex flex-col items-center gap-4 py-2">
-          <div className="bg-white p-4 rounded-2xl">
-            <QRCodeSVG value={absUrl('/rank')} size={180} />
-          </div>
-          <p className="text-[14px] text-mut text-center">
-            손님이 스캔하면 매장 페이지로 연결됩니다.<br />인쇄하여 카운터·테이블에 비치하세요.
-          </p>
-        </div>
-      </Modal>
+      <SignupQrModal open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
   )
 }
@@ -198,9 +188,9 @@ function ChargeModal({ c, onClose }: { c: Currency; onClose: () => void }) {
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const submit = () => {
+  const submit = async () => {
     const n = parseInt(amount, 10)
-    const err = issueToStore(c, n || 0, reason)
+    const err = await issueToStore(c, n || 0, reason)
     if (err) return setError(err)
     onClose()
   }
@@ -241,15 +231,21 @@ function TransferModal({ c, mode, onClose }: { c: Currency; mode: 'send' | 'recl
     .filter((m) => m.status === 'active')
     .filter((m) => !q || m.nickname.includes(q) || m.no.includes(q))
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false)
+  // 결제 후 포인트 지급 흐름: 사유에 결제 수단을 남겨 충전 기록(감사 증적)이 되게 함
+  const presets = mode === 'send' ? ['현금 결제', '카드 결제', '이벤트 지급', '프라이즈 지급'] : ['오지급 정정', '환불 처리']
+
+  const submit = async () => {
     if (!memberId) return setError('회원을 선택해주세요.')
     const n = parseInt(amount, 10)
     if (!n || n <= 0) return setError('수량을 입력해주세요.')
     if (mode === 'reclaim' && !reason.trim()) return setError('환수 사유를 입력해주세요.')
+    setBusy(true)
     const err =
       mode === 'send'
-        ? transferToMember(memberId, c, n, reason.trim() || '지점 전송')
-        : reclaimFromMember(memberId, c, n, reason.trim())
+        ? await transferToMember(memberId, c, n, reason.trim() || '지점 전송')
+        : await reclaimFromMember(memberId, c, n, reason.trim())
+    setBusy(false)
     if (err) return setError(err)
     onClose()
   }
@@ -281,13 +277,27 @@ function TransferModal({ c, mode, onClose }: { c: Currency; mode: 'send' | 'recl
             <Input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
           </Field>
           <Field label={mode === 'reclaim' ? '사유 (필수)' : '사유 (선택)'}>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'reclaim' ? '예: 오지급 정정' : '예: 이벤트 지급'} />
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={mode === 'reclaim' ? '예: 오지급 정정' : '예: 현금 결제'} />
           </Field>
+        </div>
+        <div className="flex flex-wrap gap-1.5 -mt-2">
+          {presets.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setReason(p)}
+              className={`px-2.5 py-1 rounded-full border text-[13px] transition-colors ${
+                reason === p ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
         </div>
         {error && <div className="text-sm text-rose">{error}</div>}
         <div className="flex justify-end gap-2">
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
-          <Btn variant="primary" onClick={submit}>{mode === 'send' ? '전송' : '환수'}</Btn>
+          <Btn variant="primary" onClick={submit} disabled={busy}>{busy ? '처리 중…' : mode === 'send' ? '전송' : '환수'}</Btn>
         </div>
       </div>
     </Modal>

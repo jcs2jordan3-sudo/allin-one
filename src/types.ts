@@ -15,6 +15,7 @@ export interface Member {
   joinedAt: number
   status: 'active' | 'left'
   memo?: string
+  linked?: boolean // 앱 계정(로그인) 연결 여부 — 클라우드 모드
 }
 
 /** RP 수동 조정 이력 — 수동 조정은 사유 필수 (§6-8 원칙) */
@@ -27,10 +28,15 @@ export interface RpLogEntry {
   operator: string
 }
 
+export type StaffRole = 'owner' | 'manager' | 'dealer'
+export const STAFF_ROLE_LABEL: Record<StaffRole, string> = { owner: '대표', manager: '매니저', dealer: '딜러' }
+
 export interface Manager {
   id: string
-  loginId: string
+  loginId: string // 로컬: 아이디 / 클라우드: 로그인 이메일
   name: string
+  role?: StaffRole
+  linked?: boolean // 클라우드: 해당 이메일로 가입 완료(로그인 가능)
 }
 
 export type LevelType = 'level' | 'break'
@@ -119,6 +125,7 @@ export interface Game {
   correctionCount?: number
   addonChips?: number // 누적 애드온 칩
   addonCount?: number
+  joinCode?: string // 전광판 QR 코드(셀프 바인 URL) — 게임 id 대신 노출되는 불투명 코드
 }
 
 export interface LedgerEntry {

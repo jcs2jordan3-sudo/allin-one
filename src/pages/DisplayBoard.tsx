@@ -8,12 +8,15 @@ import {
 } from '../lib/time'
 import { fmtNum } from '../lib/format'
 import { absUrl } from '../lib/url'
+import { hasSupabase } from '../lib/supabase'
+import { useSignupUrl } from '../components/SignupQr'
 
 /** 타이머 전광판 — TV/태블릿 전체화면용, 로그인 불필요 */
 export default function DisplayBoard() {
   const { id } = useParams()
   const game = useStore((s) => s.games.find((g) => g.id === id))
   const events = useStore((s) => s.events)
+  const signupUrl = useSignupUrl()
   const now = useNow(250)
   const [panel, setPanel] = useState<'prize' | 'notice'>('prize')
 
@@ -152,10 +155,28 @@ export default function DisplayBoard() {
           <div className="font-extrabold tracking-tight text-sm">
             ♠ ALL-IN <span className="text-mint">ONE</span>
           </div>
-          <div className="bg-white p-2.5 rounded-xl">
-            <QRCodeSVG value={absUrl('/rank')} size={110} />
-          </div>
-          <span className="text-[12px] text-white/40">스캔하고 랭킹 확인</span>
+          {hasSupabase && game.joinCode && !closed && game.status !== 'ended' ? (
+            // 셀프 바인 QR: 회원이 스캔 → 로그인 → 포인트로 즉시 바인 (레지 마감 전까지만 노출)
+            <>
+              <div className="bg-white p-2.5 rounded-xl ring-4 ring-mint/40">
+                <QRCodeSVG value={absUrl(`/g/${game.joinCode}`)} size={128} />
+              </div>
+              <span className="text-[13px] font-bold text-mint tracking-wide">스캔하고 포인트로 바인</span>
+              <div className="flex items-center gap-2 pt-1 border-t border-white/8 w-full justify-center">
+                <div className="bg-white p-1 rounded-md">
+                  <QRCodeSVG value={signupUrl} size={44} />
+                </div>
+                <span className="text-[11px] text-white/45 leading-tight">처음이면<br />회원가입</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-white p-2.5 rounded-xl">
+                <QRCodeSVG value={absUrl('/rank')} size={110} />
+              </div>
+              <span className="text-[12px] text-white/40">{closed && hasSupabase ? '레지 마감 · 스캔하고 랭킹 확인' : '스캔하고 랭킹 확인'}</span>
+            </>
+          )}
         </div>
         <button
           onClick={fullscreen}

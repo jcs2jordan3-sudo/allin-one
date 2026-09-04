@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { fmtNum, maskName } from '../lib/format'
@@ -9,8 +10,11 @@ const MEDALS = ['🥇', '🥈', '🥉']
 export default function PublicRanking() {
   const storeName = useStore((s) => s.storeName)
   const season = useStore((s) => s.seasons.find((x) => x.status === 'open' || x.status === 'closed'))
-  const members = useStore((s) =>
-    [...s.members].filter((m) => m.status === 'active' && m.rp > 0).sort((a, b) => b.rp - a.rp),
+  const allMembers = useStore((s) => s.members)
+  // 셀렉터 안에서 새 배열을 만들면 zustand v5가 무한 리렌더하므로 useMemo로 파생
+  const members = useMemo(
+    () => [...allMembers].filter((m) => m.status === 'active' && m.rp > 0).sort((a, b) => b.rp - a.rp),
+    [allMembers],
   )
 
   return (

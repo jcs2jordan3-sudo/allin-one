@@ -28,8 +28,14 @@ export default function EndGameModal({ game, open, onClose }: { game: Game; open
     setOrder(next)
   }
 
-  const submit = () => {
-    endGame(game.id, order)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
+    setBusy(true)
+    const err = await endGame(game.id, order)
+    setBusy(false)
+    if (err) return setError(err)
     onClose()
   }
 
@@ -66,9 +72,10 @@ export default function EndGameModal({ game, open, onClose }: { game: Game; open
           </div>
         </>
       )}
+      {error && <div className="text-sm text-rose mt-3">{error}</div>}
       <div className="flex justify-end gap-2 mt-5">
         <Btn variant="ghost" onClick={onClose}>취소</Btn>
-        <Btn variant="danger" onClick={submit}>종료 및 지급</Btn>
+        <Btn variant="danger" onClick={submit} disabled={busy}>{busy ? '처리 중…' : '종료 및 지급'}</Btn>
       </div>
     </Modal>
   )

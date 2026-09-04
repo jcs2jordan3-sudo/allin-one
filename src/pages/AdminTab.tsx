@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSession, useStore } from '../store'
-import type { Manager, Member } from '../types'
+import type { Manager, Member, StaffRole } from '../types'
+import { STAFF_ROLE_LABEL } from '../types'
+import { hasSupabase } from '../lib/supabase'
 import { fmtDateTime, fmtNum } from '../lib/format'
-import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle } from '../components/ui'
+import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle, Select } from '../components/ui'
 import Avatar from '../components/Avatar'
+import { SignupQrModal } from '../components/SignupQr'
 import { withCompetitionRanks } from './RankingTab'
 
 type SortKey = 'joined' | 'nickname' | 'P' | 'S' | 'V'
@@ -26,6 +29,7 @@ export default function AdminTab() {
   const [confirmDelMgr, setConfirmDelMgr] = useState<Manager | null>(null)
   const [memberModal, setMemberModal] = useState<Member | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<SortKey>('joined')
 
@@ -45,20 +49,30 @@ export default function AdminTab() {
 
   return (
     <div className="space-y-8">
-      {/* 매니저 계정 */}
+      {/* 직원(매니저) 계정 */}
       <section>
-        <SectionTitle right={<Btn sm variant="gold" onClick={() => setManagerModal('new')}>생성하기</Btn>}>매니저 계정</SectionTitle>
+        <SectionTitle right={<Btn sm variant="gold" onClick={() => setManagerModal('new')}>{hasSupabase ? '직원 초대' : '생성하기'}</Btn>}>
+          {hasSupabase ? '직원 계정' : '매니저 계정'}
+        </SectionTitle>
+        {hasSupabase && (
+          <p className="text-[13px] text-mut mb-3 leading-relaxed">
+            이메일과 역할을 등록하면 초대 상태가 됩니다. 해당 이메일로 콘솔에서 가입하면 자동으로 연결됩니다.
+            역할: 대표(전체) · 매니저(재화 전송·환수 가능) · 딜러(게임 운영만).
+          </p>
+        )}
         {st.managers.length === 0 ? (
-          <Empty>등록된 매니저가 없습니다.</Empty>
+          <Empty>등록된 직원이 없습니다.</Empty>
         ) : (
           <div className="space-y-2">
             {st.managers.map((m) => (
-              <Card key={m.id} className="px-5 py-3.5 flex items-center gap-3">
+              <Card key={m.id} className="px-5 py-3.5 flex items-center gap-3 flex-wrap">
                 <span className="font-bold">{m.name}</span>
                 <span className="text-[14px] text-mut">({m.loginId})</span>
+                {m.role && <Badge tone={m.role === 'owner' ? 'gold' : m.role === 'manager' ? 'mint' : 'sky'}>{STAFF_ROLE_LABEL[m.role]}</Badge>}
+                {hasSupabase && (m.linked ? <Badge tone="mut">로그인 연결됨</Badge> : <Badge tone="rose">초대 대기</Badge>)}
                 <div className="ml-auto flex gap-2">
                   <Btn sm onClick={() => setManagerModal(m)}>변경</Btn>
-                  <Btn sm variant="danger" onClick={() => setConfirmDelMgr(m)}>삭제</Btn>
+                  <Btn sm variant="danger" onClick={() => setConfirmDelMgr(m)} disabled={m.role === 'owner' && st.managers.filter((x) => x.role === 'owner').length <= 1}>삭제</Btn>
                 </div>
               </Card>
             ))}
@@ -74,6 +88,7 @@ export default function AdminTab() {
               <div className="w-56 max-w-full">
                 <Input placeholder="닉네임 혹은 번호를 입력해보세요" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
+              <Btn sm onClick={() => setQrOpen(true)}>가입 QR</Btn>
               <Btn sm variant="primary" onClick={() => setAddOpen(true)}>+ 회원 등록</Btn>
             </div>
           }
@@ -120,6 +135,7 @@ export default function AdminTab() {
                         <Avatar emoji={m.emoji} color={m.color} size={30} />
                         <span className="font-semibold">{m.nickname}</span>
                         <span className="text-[13px] text-mut num">({m.no})</span>
+                        {hasSupabase && m.linked && <span title="앱 계정 연결됨" className="text-[11px] text-mint border border-mint/30 rounded-full px-1.5">앱</span>}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right num text-gold">{fmtNum(m.balances.P)}</td>
@@ -133,18 +149,18 @@ export default function AdminTab() {
         )}
       </section>
 
-      {/* 잠금 설정 */}
-      <LockSection />
+      {/* 잠금 설정 — 로컬 모드 전용 (클라우드 모드는 계정 로그인이 대신함) */}
+      {!hasSupabase && <LockSection />}
 
       {/* 데이터 관리 */}
       <DataSection />
 
       {managerModal && <ManagerModal manager={managerModal === 'new' ? null : managerModal} onClose={() => setManagerModal(null)} />}
       {confirmDelMgr && (
-        <Modal open onClose={() => setConfirmDelMgr(null)} title="매니저 삭제">
+        <Modal open onClose={() => setConfirmDelMgr(null)} title="직원 삭제">
           <p className="text-sm text-mut leading-relaxed">
-            매니저 <b className="text-ink">{confirmDelMgr.name}</b> ({confirmDelMgr.loginId}) 계정을 삭제할까요?
-            <br />해당 계정은 즉시 로그인할 수 없게 됩니다.
+            <b className="text-ink">{confirmDelMgr.name}</b> ({confirmDelMgr.loginId}) 계정을 삭제할까요?
+            <br />해당 계정은 즉시 콘솔에 접근할 수 없게 됩니다.
           </p>
           <div className="flex justify-end gap-2 mt-5">
             <Btn variant="ghost" onClick={() => setConfirmDelMgr(null)}>취소</Btn>
@@ -154,6 +170,7 @@ export default function AdminTab() {
       )}
       {memberModal && <MemberDetailModal member={memberModal} onClose={() => setMemberModal(null)} />}
       {addOpen && <AddMemberModal onClose={() => setAddOpen(false)} />}
+      <SignupQrModal open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
   )
 }
@@ -248,13 +265,19 @@ function DataSection() {
     }
   }
 
+  const runReset = async (mode: 'empty' | 'demo') => {
+    const err = await resetData(mode)
+    setConfirm(null)
+    setMsg(err ?? '초기화가 완료되었습니다.')
+  }
+
   return (
     <section>
       <SectionTitle>데이터 관리</SectionTitle>
       <Card className="p-5">
         <div className="flex flex-wrap gap-2">
           <Btn onClick={backup}>백업 다운로드</Btn>
-          <Btn onClick={() => fileRef.current?.click()}>백업 복원</Btn>
+          {!hasSupabase && <Btn onClick={() => fileRef.current?.click()}>백업 복원</Btn>}
           <Btn variant="danger" onClick={() => setConfirm('empty')}>빈 상태로 시작</Btn>
           <Btn variant="danger" onClick={() => setConfirm('demo')}>데모 데이터로 초기화</Btn>
           <input
@@ -270,8 +293,10 @@ function DataSection() {
           />
         </div>
         <p className="text-[13px] text-mut mt-3 leading-relaxed">
-          데이터는 이 브라우저에 저장됩니다. 실사용 전 주기적으로 백업을 내려받아 두세요.
-          "빈 상태로 시작"은 게임 셋·이용권 유형·테이블·매니저 구조만 남기고 회원·게임·원장을 모두 비웁니다.
+          {hasSupabase
+            ? '데이터는 Supabase에 저장되며 모든 기기가 같은 데이터를 봅니다. 초기화는 대표(owner) 계정만 실행할 수 있고, 앱으로 가입한 회원 정보도 함께 삭제됩니다.'
+            : '데이터는 이 브라우저에 저장됩니다. 실사용 전 주기적으로 백업을 내려받아 두세요.'}
+          {' '}"빈 상태로 시작"은 게임 셋·이용권 유형·테이블·직원 구조만 남기고 회원·게임·원장을 모두 비웁니다.
         </p>
         {msg && <div className="text-[14px] text-mint mt-2">{msg}</div>}
       </Card>
@@ -286,7 +311,7 @@ function DataSection() {
           </p>
           <div className="flex justify-end gap-2 mt-5">
             <Btn variant="ghost" onClick={() => setConfirm(null)}>취소</Btn>
-            <Btn variant="danger" onClick={() => { resetData(confirm); setConfirm(null); setMsg('초기화가 완료되었습니다.') }}>실행</Btn>
+            <Btn variant="danger" onClick={() => runReset(confirm)}>실행</Btn>
           </div>
         </Modal>
       )}
@@ -299,28 +324,53 @@ function ManagerModal({ manager, onClose }: { manager: Manager | null; onClose: 
   const updateManager = useStore((s) => s.updateManager)
   const [loginId, setLoginId] = useState(manager?.loginId ?? '')
   const [name, setName] = useState(manager?.name ?? '')
+  const [role, setRole] = useState<StaffRole>(manager?.role ?? 'manager')
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const submit = () => {
-    if (!loginId.trim() || !name.trim()) return setError('아이디와 이름을 모두 입력해주세요.')
-    if (manager) updateManager(manager.id, { loginId: loginId.trim(), name: name.trim() })
-    else addManager(loginId.trim(), name.trim())
+  const submit = async () => {
+    if (!loginId.trim() || !name.trim()) return setError(hasSupabase ? '이메일과 이름을 모두 입력해주세요.' : '아이디와 이름을 모두 입력해주세요.')
+    if (hasSupabase && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginId.trim())) return setError('올바른 이메일 주소를 입력해주세요.')
+    setBusy(true)
+    const err = manager
+      ? await updateManager(manager.id, { loginId: loginId.trim(), name: name.trim(), role })
+      : await addManager(loginId.trim(), name.trim(), role)
+    setBusy(false)
+    if (err) return setError(err)
     onClose()
   }
 
   return (
-    <Modal open onClose={onClose} title={manager ? '매니저 변경' : '매니저 생성'}>
+    <Modal open onClose={onClose} title={manager ? '직원 변경' : hasSupabase ? '직원 초대' : '매니저 생성'}>
       <div className="space-y-4">
-        <Field label="로그인 아이디">
-          <Input value={loginId} onChange={(e) => setLoginId(e.target.value)} placeholder="예: manager2" />
+        <Field label={hasSupabase ? '로그인 이메일' : '로그인 아이디'}>
+          <Input
+            type={hasSupabase ? 'email' : 'text'}
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            placeholder={hasSupabase ? 'staff@example.com' : '예: manager2'}
+            disabled={!!manager?.linked}
+          />
         </Field>
         <Field label="이름">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 매니저2" />
         </Field>
+        <Field label="역할">
+          <Select value={role} onChange={(e) => setRole(e.target.value as StaffRole)}>
+            <option value="owner">대표 — 전체 권한 (직원 관리·초기화)</option>
+            <option value="manager">매니저 — 게임 운영 + 재화 전송·환수</option>
+            <option value="dealer">딜러 — 게임 운영만</option>
+          </Select>
+        </Field>
+        {hasSupabase && !manager && (
+          <p className="text-[13px] text-mut leading-relaxed">
+            저장하면 초대 상태가 됩니다. 이 이메일로 콘솔 로그인 화면의 "초대받은 직원이에요 → 가입"에서 가입하면 바로 연결됩니다.
+          </p>
+        )}
         {error && <div className="text-sm text-rose">{error}</div>}
         <div className="flex justify-end gap-2">
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
-          <Btn variant="primary" onClick={submit}>저장</Btn>
+          <Btn variant="primary" onClick={submit} disabled={busy}>{busy ? '저장 중…' : '저장'}</Btn>
         </div>
       </div>
     </Modal>
@@ -335,9 +385,14 @@ function AddMemberModal({ onClose }: { onClose: () => void }) {
   const [color, setColor] = useState(COLORS[0])
   const [error, setError] = useState<string | null>(null)
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
     if (!nickname.trim()) return setError('닉네임을 입력해주세요.')
-    addMember(nickname.trim(), emoji, color, phone.trim() || undefined)
+    setBusy(true)
+    const err = await addMember(nickname.trim(), emoji, color, phone.trim() || undefined)
+    setBusy(false)
+    if (err) return setError(err)
     onClose()
   }
 
@@ -381,7 +436,7 @@ function AddMemberModal({ onClose }: { onClose: () => void }) {
         {error && <div className="text-sm text-rose">{error}</div>}
         <div className="flex justify-end gap-2">
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
-          <Btn variant="primary" onClick={submit}>등록</Btn>
+          <Btn variant="primary" onClick={submit} disabled={busy}>{busy ? '등록 중…' : '등록'}</Btn>
         </div>
       </div>
     </Modal>
@@ -609,15 +664,16 @@ function ProfileEditModal({ live, onClose }: { live: Member; onClose: () => void
   const [color, setColor] = useState(live.color)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = () => {
+  const submit = async () => {
     if (!nickname.trim()) return setError('닉네임을 입력해주세요.')
-    updateMember(live.id, {
+    const err = await updateMember(live.id, {
       nickname: nickname.trim(),
       realName: realName.trim() || undefined,
       phone: phone.trim() || undefined,
       emoji,
       color,
     })
+    if (err) return setError(err)
     onClose()
   }
 
@@ -677,9 +733,9 @@ function RpModal({ live, mode, onClose }: { live: Member; mode: 'give' | 'take';
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const submit = () => {
+  const submit = async () => {
     const n = parseInt(amount, 10) || 0
-    const err = adjustRp(live.id, mode === 'give' ? n : -n, reason)
+    const err = await adjustRp(live.id, mode === 'give' ? n : -n, reason)
     if (err) return setError(err)
     onClose()
   }
@@ -717,13 +773,13 @@ function MemberTransferModal({ live, mode, onClose }: { live: Member; mode: 'sen
 
   const labels = { P: '포인트', S: '시드', V: '음료권' } as const
 
-  const submit = () => {
+  const submit = async () => {
     const n = parseInt(amount, 10) || 0
     if (mode === 'reclaim' && !reason.trim()) return setError('환수 사유를 입력해주세요.')
     const err =
       mode === 'send'
-        ? transferToMember(live.id, currency, n, reason.trim() || '지점 전송')
-        : reclaimFromMember(live.id, currency, n, reason.trim())
+        ? await transferToMember(live.id, currency, n, reason.trim() || '지점 전송')
+        : await reclaimFromMember(live.id, currency, n, reason.trim())
     if (err) return setError(err)
     onClose()
   }

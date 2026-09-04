@@ -35,9 +35,13 @@ export default function JoinModal({ game, open, onClose }: { game: Game; open: b
 
   const rule = game.snapshot.buyinRules.find((r) => r.type === type && r.round === round)
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false)
+
+  const submit = async () => {
     if (!memberId) return setError('회원을 선택해주세요.')
-    const err = joinGame(game.id, memberId, type, currency)
+    setBusy(true)
+    const err = await joinGame(game.id, memberId, type, currency)
+    setBusy(false)
     if (err) return setError(err)
     setError(null)
     setMemberId(null)
@@ -109,7 +113,7 @@ export default function JoinModal({ game, open, onClose }: { game: Game; open: b
         {error && <div className="text-sm text-rose">{error}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
-          <Btn variant="primary" onClick={submit} disabled={!memberId || !rule}>등록</Btn>
+          <Btn variant="primary" onClick={submit} disabled={!memberId || !rule || busy}>{busy ? '처리 중…' : '등록'}</Btn>
         </div>
       </div>
     </Modal>

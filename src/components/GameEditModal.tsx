@@ -24,21 +24,22 @@ export default function GameEditModal({ game, open, onClose }: { game: Game; ope
   const patchPrize = (i: number, amount: number) =>
     setPrizes(prizes.map((p, j) => (i === j ? { ...p, amount } : p)))
 
-  const addAddon = () => {
+  const addAddon = async () => {
     const n = parseInt(addon, 10) || 0
-    const err = adjustChips(game.id, 'addon', n)
+    const err = await adjustChips(game.id, 'addon', n)
     if (err) return setError(err)
     setError(null)
     setMsg(`애드온 +${fmtNum(n)}칩이 반영되었습니다.`)
   }
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) return setError('게임 이름을 입력해주세요.')
     if (pending !== 0) {
-      const err = adjustChips(game.id, 'correction', pending)
+      const err = await adjustChips(game.id, 'correction', pending)
       if (err) return setError(err)
     }
-    updateGame(game.id, { name: name.trim(), notice: notice.trim(), prizes })
+    const err = await updateGame(game.id, { name: name.trim(), notice: notice.trim(), prizes })
+    if (err) return setError(err)
     onClose()
   }
 
