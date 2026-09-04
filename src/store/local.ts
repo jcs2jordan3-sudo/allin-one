@@ -399,6 +399,12 @@ function coreActions(set: SetState, get: GetState): Omit<Actions, ConsoleActionK
       return null
     },
 
+    async saveStoreName(name) {
+      if (!name.trim()) return '매장 이름을 입력해주세요.'
+      set({ storeName: name.trim() })
+      return null
+    },
+
     async saveTables(tables) {
       set({ tables })
       return null

@@ -8,6 +8,8 @@ import { fmtDateTime, fmtNum } from '../lib/format'
 import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle, Select } from '../components/ui'
 import Avatar from '../components/Avatar'
 import { SignupQrModal } from '../components/SignupQr'
+import PasswordChange from '../components/PasswordChange'
+import { useAuth } from '../auth'
 import { withCompetitionRanks } from './RankingTab'
 
 type SortKey = 'joined' | 'nickname' | 'P' | 'S' | 'V'
@@ -149,6 +151,12 @@ export default function AdminTab() {
         )}
       </section>
 
+      {/* 매장 설정 */}
+      <StoreSection />
+
+      {/* 내 계정 — 클라우드 모드: 비밀번호 변경 */}
+      {hasSupabase && <AccountSection />}
+
       {/* 잠금 설정 — 로컬 모드 전용 (클라우드 모드는 계정 로그인이 대신함) */}
       {!hasSupabase && <LockSection />}
 
@@ -172,6 +180,56 @@ export default function AdminTab() {
       {addOpen && <AddMemberModal onClose={() => setAddOpen(false)} />}
       <SignupQrModal open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
+  )
+}
+
+// ── 매장 설정 ─────────────────────────────────────────────────────────────
+
+function StoreSection() {
+  const storeName = useStore((s) => s.storeName)
+  const saveStoreName = useStore((s) => s.saveStoreName)
+  const [name, setName] = useState(storeName)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const save = async () => {
+    const err = await saveStoreName(name)
+    setMsg(err ? { ok: false, text: err } : { ok: true, text: '매장 이름이 저장되었습니다. 전광판·가입 페이지에도 반영됩니다.' })
+  }
+
+  return (
+    <section>
+      <SectionTitle>매장 설정</SectionTitle>
+      <Card className="p-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-64 max-w-full">
+            <Field label="매장 이름">
+              <Input value={name} onChange={(e) => { setName(e.target.value); setMsg(null) }} placeholder="예: 강남 1호점" />
+            </Field>
+          </div>
+          <Btn variant="primary" onClick={save} disabled={!name.trim() || name.trim() === storeName}>저장</Btn>
+        </div>
+        {msg && <div className={`text-[14px] mt-3 ${msg.ok ? 'text-mint' : 'text-rose'}`}>{msg.text}</div>}
+      </Card>
+    </section>
+  )
+}
+
+// ── 내 계정 (클라우드 모드) ────────────────────────────────────────────────
+
+function AccountSection() {
+  const role = useAuth((s) => s.role)
+  const email = role.kind === 'staff' ? role.email : ''
+  return (
+    <section>
+      <SectionTitle>내 계정</SectionTitle>
+      <Card className="p-5">
+        <p className="text-[14px] text-mut mb-4">
+          로그인 이메일 <span className="text-ink font-semibold">{email}</span>
+          {role.kind === 'staff' && <> · 역할 <Badge tone={role.role === 'owner' ? 'gold' : 'mint'}>{STAFF_ROLE_LABEL[role.role]}</Badge></>}
+        </p>
+        <PasswordChange />
+      </Card>
+    </section>
   )
 }
 

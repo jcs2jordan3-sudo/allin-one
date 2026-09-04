@@ -10,6 +10,7 @@ import { COLORS, EMOJIS } from '../lib/avatar'
 import { Badge, Btn, Card, Field, Input, Modal } from '../components/ui'
 import Splash from '../components/Splash'
 import Avatar from '../components/Avatar'
+import PasswordChange from '../components/PasswordChange'
 import PlayerShell from './PlayerShell'
 import { LocalNotice } from './JoinPage'
 import { fetchMe, fetchMyGames, fetchOpenGames, fetchStoreName, subscribeMe, updateMyProfile, type MyInfo } from './api'
@@ -243,6 +244,10 @@ function ProfileModal({ me, onClose }: { me: MyInfo; onClose: () => void }) {
         <div className="flex justify-end gap-2">
           <Btn variant="ghost" onClick={onClose}>취소</Btn>
           <Btn variant="primary" onClick={submit} disabled={busy}>{busy ? '저장 중…' : '저장'}</Btn>
+        </div>
+        <div className="border-t border-line pt-4">
+          <div className="text-[14px] font-bold mb-2">비밀번호 변경</div>
+          <PasswordChange compact />
         </div>
       </div>
     </Modal>

@@ -68,6 +68,7 @@ export interface Actions {
   // 관리
   resetData: (mode: 'empty' | 'demo') => Result
   setLockPin: (pin: string | null) => Result
+  saveStoreName: (name: string) => Result
   saveTables: (tables: TableInfo[]) => Result
   saveEvent: (post: Partial<EventPost> & { title: string; body: string }) => Result
   removeEvent: (id: string) => Result

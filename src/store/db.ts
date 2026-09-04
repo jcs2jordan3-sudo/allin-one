@@ -277,6 +277,10 @@ export function createDbStore(sb: SupabaseClient) {
         return null // 클라우드 모드는 계정 로그인이 잠금을 대신함
       },
       saveTables: (tables) => run(() => sb.from('stores').update({ tables }).eq('id', requireStore()), 'store'),
+      async saveStoreName(name) {
+        if (!name.trim()) return '매장 이름을 입력해주세요.'
+        return run(() => sb.from('stores').update({ name: name.trim() }).eq('id', requireStore()), 'store')
+      },
       saveEvent: (post) =>
         run(
           () => post.id
