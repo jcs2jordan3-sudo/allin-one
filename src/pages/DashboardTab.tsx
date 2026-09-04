@@ -211,23 +211,6 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
             {!scheduled && g.status !== 'ended' && elapsed > 12 * 3_600_000 && (
               <Badge tone="rose">12시간 초과 — 종료 확인 필요</Badge>
             )}
-            {g.status === 'paused' ? (
-              <button
-                onClick={() => resumeGame(g.id)}
-                className="w-7 h-7 rounded-sm border border-mint/50 text-mint flex items-center justify-center text-[14px] hover:bg-mint/10"
-                aria-label="재개"
-              >
-                ▶
-              </button>
-            ) : (
-              <button
-                onClick={() => pauseGame(g.id)}
-                className="w-7 h-7 rounded-sm border border-rose/50 text-rose flex items-center justify-center text-[14px] hover:bg-rose/10"
-                aria-label="일시정지"
-              >
-                ⏸
-              </button>
-            )}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-base text-mut">
             <span className="inline-flex items-center gap-1.5">
@@ -244,7 +227,17 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
             </span>
           </div>
         </div>
-        <div className="flex flex-col gap-2 shrink-0">
+        <div className="flex flex-col gap-2 shrink-0 items-end">
+          {/* 타이머 제어 — 카드 우측 상단 */}
+          {g.status === 'paused' ? (
+            <Btn sm variant="primary" onClick={() => resumeGame(g.id)} className="min-w-28" aria-label="재개">
+              ▶ 재개
+            </Btn>
+          ) : (
+            <Btn sm variant="danger" onClick={() => pauseGame(g.id)} className="min-w-28" aria-label="일시정지">
+              ⏸ 일시정지
+            </Btn>
+          )}
           <div className="flex gap-2">
             <Btn sm onClick={() => setBalanceOpen(true)}>밸런싱</Btn>
             <Btn sm onClick={() => setJoinOpen(true)}>참가 등록</Btn>
