@@ -71,7 +71,7 @@ export default function DisplayBoard() {
         <h1 className="text-3xl font-extrabold tracking-tight text-center flex items-center gap-3">
           {game.name}
           {game.status === 'paused' && (
-            <span className="text-sm font-bold text-gold border border-gold/40 rounded-full px-3 py-1">PAUSED</span>
+            <span className="text-sm font-bold text-gold border border-gold/40 rounded-sm px-3 py-1">PAUSED</span>
           )}
         </h1>
         <div className="stage-ring relative rounded-full border border-mint/25 w-[min(56vh,460px)] aspect-square flex flex-col items-center justify-center gap-2 bg-black/30 backdrop-blur-sm">

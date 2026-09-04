@@ -394,7 +394,7 @@ function TypesModal({ onClose }: { onClose: () => void }) {
       <div className="space-y-2">
         {st.passTypes.filter((t) => !t.archived).map((t) => (
           <div key={t.id} className="flex items-center gap-3 px-4 py-3 border border-line rounded-xl flex-wrap">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: t.color }} aria-hidden />
+            <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: t.color }} aria-hidden />
             <Input
               value={t.name}
               onChange={(e) => st.savePassType({ ...t, name: e.target.value })}

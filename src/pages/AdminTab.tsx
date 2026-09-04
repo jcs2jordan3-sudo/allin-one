@@ -95,7 +95,7 @@ export default function AdminTab() {
             </div>
           }
         >
-          일반 회원 <span className="text-mint">{members.length}명</span>
+          일반 회원 <span className="text-mut font-semibold">{members.length}명</span>
         </SectionTitle>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -103,7 +103,7 @@ export default function AdminTab() {
             <button
               key={s.key}
               onClick={() => setSort(s.key)}
-              className={`px-3.5 py-1.5 rounded-full border text-[16px] font-semibold transition-colors ${
+              className={`px-3.5 py-1.5 rounded-sm border text-[16px] font-semibold transition-colors ${
                 sort === s.key ? 'border-gold/60 bg-gold/10 text-gold' : 'border-line2 text-mut hover:text-ink'
               }`}
             >
@@ -137,7 +137,7 @@ export default function AdminTab() {
                         <Avatar emoji={m.emoji} color={m.color} size={30} />
                         <span className="font-semibold">{m.nickname}</span>
                         <span className="text-[15px] text-mut num">({m.no})</span>
-                        {hasSupabase && m.linked && <span title="앱 계정 연결됨" className="text-[13px] text-mint border border-mint/30 rounded-full px-1.5">앱</span>}
+                        {hasSupabase && m.linked && <span title="앱 계정 연결됨" className="text-[13px] text-mint border border-mint/30 rounded-sm px-1.5">앱</span>}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right num text-gold">{fmtNum(m.balances.P)}</td>
@@ -246,7 +246,7 @@ function AuditSection() {
           <button
             key={fl.key}
             onClick={() => { setFilter(fl.key); setPage(1) }}
-            className={`px-3 py-1 rounded-full border text-[15px] font-semibold transition-colors ${
+            className={`px-3 py-1 rounded-sm border text-[15px] font-semibold transition-colors ${
               filter === fl.key ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
             }`}
           >
@@ -679,7 +679,7 @@ function MemberInfoTab({ live, onClose }: { live: Member; onClose: () => void })
           <span className="text-mut">{season?.name ?? '시즌'}</span>
           <span className="font-bold text-lg num">{myRank ? `${myRank}위` : '—'}</span>
           <span className="text-mut">·</span>
-          <span className="font-bold num text-mint">RP {fmtNum(live.rp)}</span>
+          <span className="font-bold num">RP {fmtNum(live.rp)}</span>
         </div>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <Btn sm onClick={() => setRpMode('give')}>RP 전송하기</Btn>
@@ -893,7 +893,7 @@ function RpModal({ live, mode, onClose }: { live: Member; mode: 'give' | 'take';
   return (
     <Modal open onClose={onClose} title={mode === 'give' ? 'RP 전송하기' : 'RP 환수하기'}>
       <p className="text-[16px] text-mut leading-relaxed mb-4">
-        <b className="text-ink">{live.nickname}</b>님의 현재 RP는 <b className="text-mint num">{fmtNum(live.rp)}</b>입니다.
+        <b className="text-ink">{live.nickname}</b>님의 현재 RP는 <b className="num">{fmtNum(live.rp)}</b>입니다.
         수동 조정은 사유가 필수이며 조정 이력에 기록됩니다.
       </p>
       <div className="grid grid-cols-2 gap-3">

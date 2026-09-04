@@ -10,7 +10,8 @@ const btnStyles: Record<BtnVariant, string> = {
   soft: 'bg-surface2 text-ink border border-line2 hover:border-mint/50 hover:text-mint',
   ghost: 'text-mut hover:text-ink hover:bg-surface2',
   danger: 'bg-surface2 text-rose border border-line2 hover:border-rose/60',
-  gold: 'bg-gold text-goldink font-semibold hover:brightness-110',
+  // 색 절제: 강조 버튼은 밝은 테두리의 무채색으로 (민트는 primary 하나만)
+  gold: 'bg-surface2 text-ink font-semibold border border-line2 hover:border-mint/50 hover:text-mint',
 }
 
 export function Btn({
@@ -53,16 +54,17 @@ export function Badge({
   tone?: 'mint' | 'gold' | 'rose' | 'sky' | 'mut' | 'viol'
   children: ReactNode
 }) {
+  // 색 절제: 상태 의미가 있는 mint(긍정)·rose(주의)만 색, 나머지는 무채색
   const tones = {
     mint: 'bg-mint/12 text-mint border-mint/30',
-    gold: 'bg-gold/12 text-gold border-gold/30',
+    gold: 'bg-surface2 text-ink border-line2',
     rose: 'bg-rose/12 text-rose border-rose/30',
-    sky: 'bg-sky/12 text-sky border-sky/30',
-    viol: 'bg-viol/12 text-viol border-viol/30',
+    sky: 'bg-surface2 text-ink border-line2',
+    viol: 'bg-surface2 text-ink border-line2',
     mut: 'bg-surface2 text-mut border-line2',
   }
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[14px] font-semibold whitespace-nowrap ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm border text-[14px] font-semibold whitespace-nowrap ${tones[tone]}`}>
       {children}
     </span>
   )

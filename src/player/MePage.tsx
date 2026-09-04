@@ -120,7 +120,7 @@ export default function MePage() {
           </div>
           <div className="text-right">
             <div className="text-[13px] font-bold tracking-widest text-faint">RP</div>
-            <div className="text-xl font-extrabold num text-mint">{fmtNum(m.rp)}</div>
+            <div className="text-xl font-extrabold num">{fmtNum(m.rp)}</div>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">

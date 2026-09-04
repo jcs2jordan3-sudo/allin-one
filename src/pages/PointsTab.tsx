@@ -293,7 +293,7 @@ function TransferModal({ c, mode, onClose }: { c: Currency; mode: 'send' | 'recl
               key={p}
               type="button"
               onClick={() => setReason(p)}
-              className={`px-2.5 py-1 rounded-full border text-[15px] transition-colors ${
+              className={`px-2.5 py-1 rounded-sm border text-[15px] transition-colors ${
                 reason === p ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
               }`}
             >

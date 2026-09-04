@@ -64,7 +64,7 @@ export default function ConsoleLayout() {
                   ALL-IN <span className="text-mint">ONE</span>
                 </span>
               </div>
-              <span className="hidden sm:inline-flex text-[15px] text-mut border border-line rounded-full px-2.5 py-0.5">
+              <span className="hidden sm:inline-flex text-[15px] text-mut border border-line rounded-sm px-2.5 py-0.5">
                 {storeName}
               </span>
               <span

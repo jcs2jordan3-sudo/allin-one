@@ -14,11 +14,23 @@
   --color-faint: #8d9aaa; /* 가장 약한 텍스트도 읽히도록 */
   --color-mint: #2fd6a0;
   --color-mintink: #062d21;
-  --color-gold: #e9bb56;
-  --color-goldink: #2d2308;
-  --color-sky: #57b6f2;
-  --color-viol: #a98bf5;
+  /* 색 절제: 글자는 흰색 + 민트(주요 동작·긍정) + 로즈(위험·차감)만.
+     포인트/시드/음료권 구분색(금·하늘·보라)은 흰색으로 접어 배지 문구로만 구분한다. */
+  --color-gold: #f3f6fa;
+  --color-goldink: #0b0f16;
+  --color-sky: #f3f6fa;
+  --color-viol: #f3f6fa;
   --color-rose: #f26d76;
+
+  /* 각진 레이아웃: 모든 rounded-* 유틸리티를 2px로. 원형(rounded-full)은 아바타·타이머 링에만 남긴다. */
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
 }
 
 @layer base {

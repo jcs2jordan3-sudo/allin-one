@@ -36,7 +36,7 @@ export default function DateRangePicker({ value, onChange }: { value: DateRange;
           key={p.label}
           type="button"
           onClick={() => onChange(p.range())}
-          className="px-2 py-1 rounded-full border border-line2 text-[14px] text-mut hover:text-ink hover:border-mint/50"
+          className="px-2 py-1 rounded-sm border border-line2 text-[14px] text-mut hover:text-ink hover:border-mint/50"
         >
           {p.label}
         </button>

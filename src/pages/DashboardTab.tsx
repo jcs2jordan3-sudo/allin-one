@@ -214,7 +214,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
             {g.status === 'paused' ? (
               <button
                 onClick={() => resumeGame(g.id)}
-                className="w-7 h-7 rounded-full border border-mint/50 text-mint flex items-center justify-center text-[14px] hover:bg-mint/10"
+                className="w-7 h-7 rounded-sm border border-mint/50 text-mint flex items-center justify-center text-[14px] hover:bg-mint/10"
                 aria-label="재개"
               >
                 ▶
@@ -222,7 +222,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
             ) : (
               <button
                 onClick={() => pauseGame(g.id)}
-                className="w-7 h-7 rounded-full border border-rose/50 text-rose flex items-center justify-center text-[14px] hover:bg-rose/10"
+                className="w-7 h-7 rounded-sm border border-rose/50 text-rose flex items-center justify-center text-[14px] hover:bg-rose/10"
                 aria-label="일시정지"
               >
                 ⏸
@@ -337,8 +337,8 @@ function BalancingModal({ game: g, open, onClose }: { game: Game; open: boolean;
         {[...byTable.entries()].map(([t, list]) => (
           <div key={t} className="flex items-center gap-3 text-sm">
             <span className="w-20 font-bold num">TABLE {t}</span>
-            <div className="flex-1 h-2 bg-surface2 rounded-full overflow-hidden">
-              <div className="h-full bg-mint/70 rounded-full" style={{ width: `${Math.min(100, list.length * 12)}%` }} />
+            <div className="flex-1 h-2 bg-surface2 rounded-sm overflow-hidden">
+              <div className="h-full bg-mint/70 rounded-sm" style={{ width: `${Math.min(100, list.length * 12)}%` }} />
             </div>
             <span className="text-mut num w-10 text-right">{list.length}명</span>
           </div>
