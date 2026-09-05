@@ -121,9 +121,10 @@ export async function selfBuyin(gameId: string, currency: Currency, requestId: s
   return { result: data as BuyinResult, error: null }
 }
 
-export async function updateMyProfile(patch: { nickname?: string; emoji?: string; color?: string; phone?: string }): Promise<string | null> {
+export async function updateMyProfile(patch: { nickname?: string; emoji?: string; color?: string; phone?: string; realName?: string }): Promise<string | null> {
   const { error } = await sb().rpc('update_my_profile', {
     p_nickname: patch.nickname ?? null, p_emoji: patch.emoji ?? null, p_color: patch.color ?? null, p_phone: patch.phone ?? null,
+    p_real_name: patch.realName ?? null,
   })
   return error ? errMsg(error) : null
 }

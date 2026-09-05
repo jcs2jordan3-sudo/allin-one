@@ -323,6 +323,7 @@ end $$;
 -- 앱 가입(auth.users 생성) 시:
 --   1) 초대된 직원 이메일이면 staff 행에 연결
 --   2) 회원 가입이면: 직원이 미리 등록한 회원(전화번호 일치·미연결)에 연결, 없으면 신규 회원 생성
+--      가입 폼의 이름(real_name)·휴대폰(phone)·닉네임을 저장 — 휴대폰은 알림(카카오톡) 발송 기준
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -330,6 +331,7 @@ declare
   v_kind text := coalesce(nullif(meta->>'kind', ''), 'member');
   v_store uuid;
   v_phone text := nullif(regexp_replace(coalesce(meta->>'phone', ''), '\D', '', 'g'), '');
+  v_name text := nullif(trim(coalesce(meta->>'real_name', '')), '');
   v_id uuid;
 begin
   select id into v_id from public.staff
@@ -352,19 +354,21 @@ begin
      order by joined_at desc limit 1;
     if v_id is not null then
       update public.members set user_id = new.id,
-        nickname = coalesce(nullif(meta->>'nickname', ''), nickname)
+        nickname = coalesce(nullif(meta->>'nickname', ''), nickname),
+        real_name = coalesce(v_name, real_name)
       where id = v_id;
       return new;
     end if;
   end if;
 
-  insert into public.members (store_id, user_id, no, nickname, emoji, color, phone)
+  insert into public.members (store_id, user_id, no, nickname, emoji, color, phone, real_name)
   values (
     v_store, new.id, public.next_member_no(v_store),
     coalesce(nullif(meta->>'nickname', ''), '회원'),
     coalesce(nullif(meta->>'emoji', ''), '🙂'),
     coalesce(nullif(meta->>'color', ''), '#57B6F2'),
-    nullif(meta->>'phone', '')
+    nullif(trim(coalesce(meta->>'phone', '')), ''),
+    v_name
   );
   return new;
 exception when others then
@@ -566,9 +570,11 @@ begin
   values (s.store_id, m.id, p_delta, trim(p_reason), s.name);
 end $$;
 
--- 회원 본인 프로필 수정
+-- 회원 본인 프로필 수정 (이전 4인자 서명은 제거 — 남겨두면 RPC 호출이 모호해짐)
+drop function if exists public.update_my_profile(text, text, text, text);
 create or replace function public.update_my_profile(
-  p_nickname text default null, p_emoji text default null, p_color text default null, p_phone text default null
+  p_nickname text default null, p_emoji text default null, p_color text default null, p_phone text default null,
+  p_real_name text default null
 ) returns void
 language plpgsql security definer set search_path = public as $$
 declare v_id uuid := public.my_member_id();
@@ -578,7 +584,8 @@ begin
     nickname = coalesce(nullif(trim(p_nickname), ''), nickname),
     emoji = coalesce(nullif(p_emoji, ''), emoji),
     color = coalesce(nullif(p_color, ''), color),
-    phone = coalesce(nullif(trim(p_phone), ''), phone)
+    phone = coalesce(nullif(trim(p_phone), ''), phone),
+    real_name = coalesce(nullif(trim(p_real_name), ''), real_name)
   where id = v_id;
 end $$;
 

@@ -125,11 +125,13 @@ await test('원장 수정·삭제 차단', async () => {
 })
 
 console.log('\n앱 가입 (QR)')
-const p1Uid = await signup('p1@test.com', { kind: 'member', nickname: '플레이어1', phone: '010-3333-4444', store_id: storeId, emoji: '🦈', color: '#57B6F2' })
+const p1Uid = await signup('p1@test.com', { kind: 'member', nickname: '플레이어1', real_name: '김철수', phone: '010-3333-4444', store_id: storeId, emoji: '🦈', color: '#57B6F2' })
 const p1 = (await one('select * from members where user_id = $1', [p1Uid]))
-await test('회원 가입 → 회원 행(0002)·지갑 생성, my_role = member', async () => {
+await test('회원 가입 → 회원 행(0002)·지갑 생성, 이름·휴대폰 저장, my_role = member', async () => {
   assert.equal(p1.no, '0002')
   assert.equal(p1.nickname, '플레이어1')
+  assert.equal(p1.real_name, '김철수')
+  assert.equal(p1.phone, '010-3333-4444')
   assert.equal((await q('select * from wallets where owner = $1', [p1.id])).length, 3)
   await as(p1Uid)
   const role = (await one('select my_role() as r')).r
@@ -140,11 +142,12 @@ await test('회원 가입 → 회원 행(0002)·지갑 생성, my_role = member'
 await test('직원이 미리 등록한 회원은 전화번호로 연결 (신규 생성 안 함)', async () => {
   const pre = (await one(`select create_member('미리등록', '🐯', '#F2A65A', '010-5555-6666') as id`)).id
   const before = (await q('select * from members')).length
-  const uid = await signup('pre@test.com', { kind: 'member', nickname: '나중가입', phone: '01055556666' })
+  const uid = await signup('pre@test.com', { kind: 'member', nickname: '나중가입', real_name: '이영희', phone: '01055556666' })
   assert.equal((await q('select * from members')).length, before)
   const m = await one('select * from members where id = $1', [pre])
   assert.equal(m.user_id, uid)
   assert.equal(m.nickname, '나중가입')
+  assert.equal(m.real_name, '이영희')
 })
 await test('store_id 없이 가입해도 첫 매장에 귀속', async () => {
   const uid = await signup('nostore@test.com', { kind: 'member', nickname: '무지정' })
@@ -411,6 +414,12 @@ await test('회원 본인 프로필 수정', async () => {
   assert.equal(m.nickname, '새닉네임')
   assert.equal(m.emoji, '🔥')
   assert.equal(m.color, '#57B6F2')
+  assert.equal(m.real_name, '김철수')
+  await q(`select update_my_profile(null, null, null, '010-1111-2222', '박실명')`)
+  const m2 = await one('select * from members where id = $1', [p1.id])
+  assert.equal(m2.nickname, '새닉네임')
+  assert.equal(m2.phone, '010-1111-2222')
+  assert.equal(m2.real_name, '박실명')
   await as(ownerUid)
 })
 
@@ -542,6 +551,22 @@ await test('기존 jsonb 상태를 넣고 schema.sql 재적용 → pass_types·s
   assert.equal((await one(`select name from seasons where store_id = $1`, [storeId])).name, '이관 시즌')
   assert.equal((await q(`select * from rp_log where member_id = $1`, [mid])).length, 1)
   assert.deepEqual((await one(`select state from console_state where store_id = $1`, [storeId])).state, {})
+})
+await test('실서버 형태(구 4인자 update_my_profile 존재)에 재적용 → 오버로드 없이 5인자 하나만 남고 4인자 호출도 동작', async () => {
+  await q(`create or replace function public.update_my_profile(p_nickname text, p_emoji text, p_color text, p_phone text)
+           returns void language sql as $$ select null $$`)
+  await db.exec(schema)
+  const n = (await one(`select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+                        where ns.nspname = 'public' and p.proname = 'update_my_profile'`)).n
+  assert.equal(n, 1)
+  // 앞선 초기화로 p1 회원 행은 사라졌으므로 새 회원으로 확인
+  const uid = await signup('overload@test.com', { kind: 'member', nickname: '오버로드', real_name: '오버로드실명', phone: '010-9999-0000' })
+  await as(uid)
+  await q(`select update_my_profile('오버로드확인', null, null, null)`)
+  const m = await one('select nickname, real_name from members where user_id = $1', [uid])
+  assert.equal(m.nickname, '오버로드확인')
+  assert.equal(m.real_name, '오버로드실명')
+  await as(ownerUid)
 })
 
 console.log(`\n${passed}개 테스트 통과`)

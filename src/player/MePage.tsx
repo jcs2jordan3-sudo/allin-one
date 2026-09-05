@@ -7,6 +7,7 @@ import { CURRENCY_LABEL, CURRENCY_UNIT } from '../types'
 import { fmtDateTime, fmtNum } from '../lib/format'
 import { isRegClosed, isScheduled, useNow } from '../lib/time'
 import { COLORS, EMOJIS } from '../lib/avatar'
+import { formatPhone, isKrMobile } from '../lib/phone'
 import { Badge, Btn, Card, Field, Input, Modal } from '../components/ui'
 import Splash from '../components/Splash'
 import Avatar from '../components/Avatar'
@@ -251,6 +252,7 @@ export default function MePage() {
 }
 
 function ProfileModal({ me, onClose }: { me: MyInfo; onClose: () => void }) {
+  const [realName, setRealName] = useState(me.member.realName ?? '')
   const [nickname, setNickname] = useState(me.member.nickname)
   const [phone, setPhone] = useState(me.member.phone ?? '')
   const [emoji, setEmoji] = useState(me.member.emoji)
@@ -260,8 +262,9 @@ function ProfileModal({ me, onClose }: { me: MyInfo; onClose: () => void }) {
 
   const submit = async () => {
     if (!nickname.trim()) return setError('닉네임을 입력해주세요.')
+    if (phone.trim() && !isKrMobile(phone)) return setError('휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)')
     setBusy(true)
-    const err = await updateMyProfile({ nickname, phone, emoji, color })
+    const err = await updateMyProfile({ nickname, phone: formatPhone(phone), emoji, color, realName })
     setBusy(false)
     if (err) return setError(err)
     await refreshRole()
@@ -271,11 +274,14 @@ function ProfileModal({ me, onClose }: { me: MyInfo; onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title="프로필 수정">
       <div className="space-y-4">
+        <Field label="이름">
+          <Input value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="실명" autoComplete="name" maxLength={20} />
+        </Field>
         <Field label="닉네임">
           <Input value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={12} />
         </Field>
-        <Field label="전화번호">
-          <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" />
+        <Field label="휴대폰 번호">
+          <Input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => setPhone((p) => formatPhone(p))} placeholder="010-0000-0000" />
         </Field>
         <Field label="아바타">
           <div className="flex flex-wrap gap-1.5">

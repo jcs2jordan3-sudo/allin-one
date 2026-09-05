@@ -15,7 +15,7 @@ mkdirSync(OUT, { recursive: true })
 
 const stamp = Date.now().toString(36)
 const OWNER = { email: process.env.E2E_OWNER_EMAIL ?? 'owner@holdem-allinone.com', pw: process.env.E2E_OWNER_PW ?? 'Allin1-Owner!2026', name: '대표', store: '강남 1호점' }
-const TESTER = { email: `tester-${stamp}@holdem-allinone.com`, pw: 'Tester!2026', nick: `테스터${stamp.slice(-3)}`, phone: '010-7777-1234' }
+const TESTER = { email: `tester-${stamp}@holdem-allinone.com`, pw: 'Tester!2026', nick: `테스터${stamp.slice(-3)}`, name: '테스트회원', phone: '010-7777-1234' }
 const DEALER = { email: `dealer-${stamp}@holdem-allinone.com`, pw: 'Dealer!2026', name: '딜러A' }
 
 const sql = async (query) => {
@@ -103,17 +103,20 @@ console.log('\n회원 (휴대폰)')
 await step('QR 가입 페이지 → 회원가입 → /me (회원번호·지갑 생성)', async () => {
   await player.goto(`${BASE}/join?s=${storeId}`, { waitUntil: 'networkidle' })
   await player.getByPlaceholder('게임에서 쓸 이름').waitFor({ timeout: 20000 })
-  await player.getByPlaceholder('게임에서 쓸 이름').fill(TESTER.nick)
+  await player.getByPlaceholder('실명').fill(TESTER.name)
   await player.getByPlaceholder('010-0000-0000').fill(TESTER.phone)
+  await player.getByPlaceholder('게임에서 쓸 이름').fill(TESTER.nick)
   await player.getByPlaceholder('you@example.com').fill(TESTER.email)
   await player.locator('input[type=password]').fill(TESTER.pw)
   await player.getByRole('button', { name: '가입하고 시작하기' }).click()
   await player.waitForURL(/\/me$/, { timeout: 30000 })
   await player.getByText(/회원번호 \d{4}/).waitFor({ timeout: 20000 })
   await player.getByText(TESTER.nick).first().waitFor()
-  const m = (await sql(`select no, nickname, user_id is not null as linked from members where nickname='${TESTER.nick}'`))[0]
+  const m = (await sql(`select no, nickname, real_name, phone, user_id is not null as linked from members where nickname='${TESTER.nick}'`))[0]
   assert.equal(m.no, '0007')
   assert.equal(m.linked, true)
+  assert.equal(m.real_name, TESTER.name)
+  assert.equal(m.phone, TESTER.phone)
   await player.shot('03-me-new')
 })
 

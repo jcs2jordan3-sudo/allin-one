@@ -91,6 +91,7 @@ export interface SignUpOpts {
   password: string
   kind: 'staff' | 'member'
   nickname?: string
+  realName?: string
   phone?: string
   emoji?: string
   color?: string
@@ -107,6 +108,7 @@ export async function signUp(opts: SignUpOpts): Promise<{ error: string | null; 
       data: {
         kind: opts.kind,
         nickname: opts.nickname?.trim() || undefined,
+        real_name: opts.realName?.trim() || undefined,
         phone: opts.phone?.trim() || undefined,
         emoji: opts.emoji,
         color: opts.color,

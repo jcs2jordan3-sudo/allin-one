@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { signIn, signUp } from '../auth'
 import { COLORS, EMOJIS } from '../lib/avatar'
+import { formatPhone, isKrMobile } from '../lib/phone'
 import { Btn, Field, Input, Segmented } from '../components/ui'
 import Avatar from '../components/Avatar'
 
@@ -16,8 +17,9 @@ export default function AuthForm({
   onDone: () => void
 }) {
   const [mode, setMode] = useState<'signup' | 'login'>(defaultMode)
-  const [nickname, setNickname] = useState('')
+  const [realName, setRealName] = useState('')
   const [phone, setPhone] = useState('')
+  const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [emoji, setEmoji] = useState(EMOJIS[Math.floor(Math.random() * EMOJIS.length)])
@@ -28,18 +30,26 @@ export default function AuthForm({
 
   const submit = async () => {
     setError(null)
-    if (!email.trim() || !pw) return setError('이메일과 비밀번호를 입력해주세요.')
-    setBusy(true)
     if (mode === 'login') {
+      if (!email.trim() || !pw) return setError('이메일과 비밀번호를 입력해주세요.')
+      setBusy(true)
       const err = await signIn(email, pw)
       setBusy(false)
       if (err) return setError(err)
       onDone()
       return
     }
-    if (!nickname.trim()) { setBusy(false); return setError('닉네임을 입력해주세요.') }
-    if (pw.length < 6) { setBusy(false); return setError('비밀번호는 6자 이상이어야 합니다.') }
-    const r = await signUp({ email, password: pw, kind: 'member', nickname, phone, emoji, color, storeId })
+    // 가입: 이름·휴대폰·닉네임은 필수 (휴대폰은 알림 발송 기준이라 형식까지 검사)
+    if (!realName.trim()) return setError('이름을 입력해주세요.')
+    if (!isKrMobile(phone)) return setError('휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)')
+    if (!nickname.trim()) return setError('닉네임을 입력해주세요.')
+    if (!email.trim()) return setError('이메일을 입력해주세요.')
+    if (pw.length < 6) return setError('비밀번호는 6자 이상이어야 합니다.')
+    setBusy(true)
+    const r = await signUp({
+      email, password: pw, kind: 'member',
+      realName, phone: formatPhone(phone), nickname, emoji, color, storeId,
+    })
     setBusy(false)
     if (r.error) return setError(r.error)
     if (r.needsConfirm) {
@@ -63,6 +73,20 @@ export default function AuthForm({
       {notice && <div className="text-sm text-mint leading-relaxed">{notice}</div>}
       {mode === 'signup' && (
         <>
+          <Field label="이름">
+            <Input value={realName} onChange={(e) => setRealName(e.target.value)} placeholder="실명" autoComplete="name" maxLength={20} />
+          </Field>
+          <Field label="휴대폰 번호">
+            <Input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onBlur={() => setPhone((p) => formatPhone(p))}
+              placeholder="010-0000-0000"
+            />
+          </Field>
           <div className="flex items-center gap-3">
             <Avatar emoji={emoji} color={color} size={52} />
             <div className="flex-1 min-w-0">
@@ -95,9 +119,6 @@ export default function AuthForm({
               />
             ))}
           </div>
-          <Field label="전화번호">
-            <Input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" />
-          </Field>
         </>
       )}
       <Field label="이메일">
@@ -118,7 +139,8 @@ export default function AuthForm({
       </Btn>
       {mode === 'signup' ? (
         <p className="text-[14px] text-faint leading-relaxed">
-          만 19세 이상만 가입할 수 있습니다. 직원이 미리 등록해 둔 회원은 같은 전화번호로 가입하면 자동으로 연결됩니다.
+          휴대폰 번호는 게임 시작·대기 호출 같은 매장 알림(카카오톡)에 사용되며, 이름과 함께 다른 회원에게는 보이지 않습니다.
+          직원이 미리 등록해 둔 회원은 같은 번호로 가입하면 자동으로 연결됩니다. 만 19세 이상만 가입할 수 있습니다.
         </p>
       ) : (
         <div className="text-center"><Link to="/reset" className="text-[15px] text-mut hover:text-ink">비밀번호를 잊으셨나요?</Link></div>
