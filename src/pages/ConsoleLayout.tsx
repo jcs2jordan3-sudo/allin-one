@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession, useStore, useSyncStatus, type SyncStatus } from '../store'
 import { hasSupabase } from '../lib/supabase'
-import { signOut, useAuth } from '../auth'
+import { refreshRole, signOut, useAuth } from '../auth'
+import { adminSelectStore } from '../dev/api'
 import { STAFF_ROLE_LABEL } from '../types'
 import { appUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
@@ -53,6 +55,7 @@ export default function ConsoleLayout() {
   return (
     <div className="min-h-screen">
       <OfflineBanner />
+      {role.kind === 'staff' && role.devScope && <DevScopeBanner storeName={storeName} />}
       <header className="glass-panel border-b border-line !rounded-none sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
@@ -111,6 +114,25 @@ export default function ConsoleLayout() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
         <Outlet />
       </main>
+    </div>
+  )
+}
+
+/** 개발자(플랫폼 관리자)가 선택한 매장을 대표 권한으로 보는 중임을 표시 */
+function DevScopeBanner({ storeName }: { storeName: string }) {
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState(false)
+  const back = async () => {
+    setBusy(true)
+    navigate('/dev')
+    await adminSelectStore(null)
+    await refreshRole()
+  }
+  return (
+    <div className="bg-gold/15 border-b border-gold/40 text-[15px] px-4 py-2 flex items-center justify-center gap-x-3 gap-y-1 flex-wrap text-center">
+      <span className="font-bold text-gold">개발자 모드</span>
+      <span>"{storeName}" 매장을 대표 권한으로 보는 중입니다. 여기서 하는 변경은 실제 매장 데이터에 반영됩니다.</span>
+      <button onClick={back} disabled={busy} className="underline font-semibold hover:text-mint">개발자 콘솔로 돌아가기</button>
     </div>
   )
 }

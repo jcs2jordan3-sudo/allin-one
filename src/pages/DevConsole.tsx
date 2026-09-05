@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { hasSupabase } from '../lib/supabase'
-import { signIn, signOut, useAuth } from '../auth'
+import { refreshRole, signIn, signOut, useAuth } from '../auth'
 import { absUrl } from '../lib/url'
 import { fmtDateTime } from '../lib/format'
 import { Badge, Btn, Card, Field, Input, Modal } from '../components/ui'
 import Splash from '../components/Splash'
 import { LocalNotice } from '../player/JoinPage'
-import { adminCreateStore, adminListStores, adminSetStoreOwner, fetchIsPlatformAdmin, type AdminStore } from '../dev/api'
+import { adminCreateStore, adminListStores, adminSelectStore, adminSetStoreOwner, fetchIsPlatformAdmin, type AdminStore } from '../dev/api'
 
 /**
  * 개발자(플랫폼 관리자) 콘솔 — /dev
@@ -111,6 +111,8 @@ function Dashboard({ email }: { email: string }) {
   const [ownerTarget, setOwnerTarget] = useState<AdminStore | null>(null)
   const [created, setCreated] = useState<{ storeName: string; ownerEmail: string } | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [opening, setOpening] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   const load = useCallback(async () => {
     const r = await adminListStores()
@@ -118,6 +120,15 @@ function Dashboard({ email }: { email: string }) {
     else { setError(null); setStores(r.stores) }
   }, [])
   useEffect(() => { void load() }, [load])
+
+  /** 매장을 선택하고 관리자 콘솔로 이동 — 서버가 이 계정을 그 매장의 대표로 판정 */
+  const openConsole = async (id: string) => {
+    setOpening(id)
+    const err = await adminSelectStore(id)
+    if (err) { setError(err); setOpening(null); return }
+    await refreshRole()
+    navigate('/')
+  }
 
   const copy = async (storeName: string, ownerEmail: string) => {
     try { await navigator.clipboard.writeText(handoffText(storeName, ownerEmail)); setCopied(storeName) } catch { setCopied(null) }
@@ -139,7 +150,7 @@ function Dashboard({ email }: { email: string }) {
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
         <section>
           <h2 className="text-lg font-bold mb-1">매장 개설</h2>
-          <p className="text-[15px] text-mut mb-3">서비스를 구매한 사람의 이메일을 대표로 지정합니다. 그 이메일로 관리자 콘솔에서 가입하면 바로 대표 권한이 됩니다.</p>
+          <p className="text-[15px] text-mut mb-3">서비스를 구매한 사람의 이메일을 대표로 지정합니다. 그 이메일로 관리자 콘솔에서 가입하면 바로 대표 권한이 됩니다. 매장 목록의 "콘솔 열기"를 누르면 그 매장을 대표 권한으로 직접 볼 수 있습니다.</p>
           <Card className="p-5">
             <CreateForm onCreated={(c) => { setCreated(c); void load() }} />
           </Card>
@@ -175,11 +186,14 @@ function Dashboard({ email }: { email: string }) {
                     직원 {s.staffCount} · 회원 {s.memberCount} · 개설 {s.createdAt ? fmtDateTime(new Date(s.createdAt).getTime()) : '—'}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {s.owner && !s.owner.linked && (
                     <Btn sm onClick={() => copy(s.name, s.owner!.email)}>{copied === s.name ? '복사됨' : '안내문 복사'}</Btn>
                   )}
                   <Btn sm onClick={() => setOwnerTarget(s)}>대표 변경</Btn>
+                  <Btn sm variant="primary" onClick={() => openConsole(s.id)} disabled={opening !== null}>
+                    {opening === s.id ? '여는 중…' : s.selected ? '콘솔 열기 (보는 중)' : '콘솔 열기'}
+                  </Btn>
                 </div>
               </Card>
             ))}

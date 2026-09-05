@@ -245,14 +245,34 @@ create index if not exists audit_log_store_ts on public.audit_log (store_id, ts 
 -- ---------------------------------------------------------------------
 -- 2. 권한 헬퍼 (RLS 정책과 RPC가 공용)
 -- ---------------------------------------------------------------------
+-- 플랫폼 관리자(개발자) — 테이블은 아래 스코프 함수들이 참조하므로 여기서 먼저 생성 (RPC는 10b 섹션)
+create table if not exists public.platform_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.platform_admins enable row level security;        -- 정책 없음: RPC(security definer)로만 접근
+-- 개발자가 "보고 있는" 매장: 선택해 두면 그 매장의 대표(owner)처럼 취급됨
+create table if not exists public.platform_admin_scope (
+  user_id uuid primary key references public.platform_admins(user_id) on delete cascade,
+  store_id uuid not null references public.stores(id) on delete cascade,
+  selected_at timestamptz not null default now()
+);
+alter table public.platform_admin_scope enable row level security;
+
+-- 현재 계정의 소속 매장 / 역할: 직원 행이 우선, 없으면 개발자가 선택한 매장(대표 권한)
 create or replace function public.staff_store_id() returns uuid
 language sql stable security definer set search_path = public as $$
-  select store_id from public.staff where user_id = auth.uid() limit 1
+  select coalesce(
+    (select store_id from public.staff where user_id = auth.uid() limit 1),
+    (select store_id from public.platform_admin_scope where user_id = auth.uid()))
 $$;
 
 create or replace function public.staff_role() returns text
 language sql stable security definer set search_path = public as $$
-  select role from public.staff where user_id = auth.uid() limit 1
+  select coalesce(
+    (select role from public.staff where user_id = auth.uid() limit 1),
+    (select 'owner' from public.platform_admin_scope where user_id = auth.uid()))
 $$;
 
 create or replace function public.my_member_id() returns uuid
@@ -263,10 +283,17 @@ $$;
 create or replace function public._require_staff(p_roles text[] default array['owner', 'manager', 'dealer'])
 returns public.staff
 language plpgsql stable security definer set search_path = public as $$
-declare s public.staff;
+declare s public.staff; v_scope uuid;
 begin
   select * into s from public.staff where user_id = auth.uid();
-  if s.id is null then raise exception '직원 계정으로 로그인해야 합니다.'; end if;
+  if s.id is null then
+    -- 개발자(플랫폼 관리자)가 매장을 선택해 둔 경우: 그 매장의 대표처럼 동작하는 가상 직원 레코드
+    select store_id into v_scope from public.platform_admin_scope where user_id = auth.uid();
+    if v_scope is null then raise exception '직원 계정으로 로그인해야 합니다.'; end if;
+    s.id := '00000000-0000-0000-0000-000000000000'; s.store_id := v_scope; s.user_id := auth.uid();
+    s.email := coalesce((select email from public.platform_admins where user_id = auth.uid()), '');
+    s.name := '개발자'; s.role := 'owner'; s.created_at := now();
+  end if;
   if not (s.role = any (p_roles)) then raise exception '이 작업을 수행할 권한이 없습니다. (현재 역할: %)', s.role; end if;
   return s;
 end $$;
@@ -800,6 +827,10 @@ language plpgsql security definer set search_path = public as $$
 declare s public.staff; v_member uuid; v_operator text;
 begin
   select * into s from public.staff where user_id = auth.uid();
+  -- 개발자가 매장을 보는 중이면 직원(대표) 경로로 (가상 직원 레코드)
+  if s.id is null and exists (select 1 from public.platform_admin_scope where user_id = auth.uid()) then
+    s := public._require_staff();
+  end if;
   if s.id is not null then
     if p_member is null then raise exception '회원을 선택해주세요.'; end if;
     v_member := p_member; v_operator := s.name;
@@ -1006,12 +1037,18 @@ end $$;
 -- 로그인 계정의 역할 조회 (앱 부팅 시 1회)
 create or replace function public.my_role() returns jsonb
 language plpgsql stable security definer set search_path = public as $$
-declare v_uid uuid := auth.uid(); s public.staff; m public.members;
+declare v_uid uuid := auth.uid(); s public.staff; m public.members; v_scope uuid;
 begin
   if v_uid is null then return jsonb_build_object('kind', 'none'); end if;
   select * into s from public.staff where user_id = v_uid;
   if s.id is not null then
     return jsonb_build_object('kind', 'staff', 'staffId', s.id, 'storeId', s.store_id, 'name', s.name, 'role', s.role, 'email', s.email);
+  end if;
+  -- 개발자가 매장을 선택해 둔 경우: 그 매장의 대표로 판정 (클라이언트는 devScope로 배너 표시)
+  select store_id into v_scope from public.platform_admin_scope where user_id = v_uid;
+  if v_scope is not null then
+    return jsonb_build_object('kind', 'staff', 'staffId', '', 'storeId', v_scope, 'name', '개발자', 'role', 'owner',
+      'email', coalesce((select email from public.platform_admins where user_id = v_uid), ''), 'devScope', true);
   end if;
   select * into m from public.members where user_id = v_uid;
   if m.id is not null then
@@ -1306,7 +1343,8 @@ begin
   v_target := coalesce(v_new->>'id', v_old->>'id');
   insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
   values (v_store, v_actor_id,
-          coalesce(v_actor, case when v_actor_id is null then '시스템' else '회원' end),
+          coalesce(v_actor, (select '개발자' from public.platform_admins where user_id = v_actor_id),
+                   case when v_actor_id is null then '시스템' else '회원' end),
           tg_table_name || '.' || lower(tg_op), tg_table_name, v_target, v_detail);
   return coalesce(new, old);
 end $$;
@@ -1521,14 +1559,9 @@ create policy audit_log_select on public.audit_log for select using (store_id = 
 -- 10b. 플랫폼 관리자(개발자) — 매장을 여러 개 개설하고 각 매장의 대표를 지정
 --   platform_admins 에 등록된 계정만 admin_* RPC 사용 가능. 등록은 SQL로만(클라이언트 접근 불가).
 --   흐름: 개발자 콘솔(/dev)에서 매장 개설 + 구매자 이메일 지정 → 구매자가 그 이메일로 콘솔 가입 → 자동으로 대표 연결
+--   매장 보기: admin_select_store(매장) 후에는 staff_store_id()/staff_role()/_require_staff()/my_role() 이
+--   그 매장의 대표로 판정하므로 관리자 콘솔 전체가 그대로 동작 (테이블은 3절 앞부분에서 생성)
 -- ---------------------------------------------------------------------
-create table if not exists public.platform_admins (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  email text not null,
-  created_at timestamptz not null default now()
-);
-alter table public.platform_admins enable row level security;   -- 정책 없음: RPC(security definer)로만 접근
-
 create or replace function public.is_platform_admin() returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.platform_admins where user_id = auth.uid())
@@ -1551,9 +1584,24 @@ begin
       'owner', (select jsonb_build_object('name', o.name, 'email', o.email, 'linked', o.user_id is not null)
                   from public.staff o where o.store_id = s.id and o.role = 'owner' order by o.created_at limit 1),
       'staffCount', (select count(*) from public.staff x where x.store_id = s.id),
-      'memberCount', (select count(*) from public.members m where m.store_id = s.id and m.status = 'active')
+      'memberCount', (select count(*) from public.members m where m.store_id = s.id and m.status = 'active'),
+      'selected', s.id = (select store_id from public.platform_admin_scope where user_id = auth.uid())
     ) order by s.created_at)
     from public.stores s), '[]'::jsonb);
+end $$;
+
+-- 개발자가 볼 매장 선택 (null이면 해제). 선택 후 관리자 콘솔(/)을 열면 그 매장이 대표 권한으로 열림
+create or replace function public.admin_select_store(p_store uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  if p_store is null then
+    delete from public.platform_admin_scope where user_id = auth.uid();
+    return;
+  end if;
+  if not exists (select 1 from public.stores where id = p_store) then raise exception '매장을 찾을 수 없습니다.'; end if;
+  insert into public.platform_admin_scope (user_id, store_id) values (auth.uid(), p_store)
+  on conflict (user_id) do update set store_id = excluded.store_id, selected_at = now();
 end $$;
 
 -- 대표 지정/변경: 이메일을 owner로 (초대 행이 없으면 생성, 이미 가입된 계정이면 즉시 연결). 기존 다른 대표는 manager로 내림

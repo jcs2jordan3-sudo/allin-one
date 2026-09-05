@@ -8,7 +8,7 @@ import type { StaffRole } from './types'
 
 export type Role =
   | { kind: 'none' }
-  | { kind: 'staff'; staffId: string; storeId: string; name: string; role: StaffRole; email: string }
+  | { kind: 'staff'; staffId: string; storeId: string; name: string; role: StaffRole; email: string; devScope?: boolean }
   | { kind: 'member'; memberId: string; storeId: string; nickname: string; no: string }
 
 interface AuthState {
@@ -46,9 +46,13 @@ export async function refreshRole(): Promise<Role> {
 async function fetchRole(): Promise<Role> {
   const { data, error } = await supabase!.rpc('my_role')
   if (error || !data) return NONE
-  const r = data as Record<string, string>
-  if (r.kind === 'staff') return { kind: 'staff', staffId: r.staffId, storeId: r.storeId, name: r.name, role: r.role as StaffRole, email: r.email }
-  if (r.kind === 'member') return { kind: 'member', memberId: r.memberId, storeId: r.storeId, nickname: r.nickname, no: r.no }
+  const r = data as Record<string, unknown>
+  const s = (k: string) => String(r[k] ?? '')
+  if (r.kind === 'staff') {
+    // devScope: 개발자(플랫폼 관리자)가 선택한 매장을 대표 권한으로 보는 중
+    return { kind: 'staff', staffId: s('staffId'), storeId: s('storeId'), name: s('name'), role: s('role') as StaffRole, email: s('email'), devScope: r.devScope === true }
+  }
+  if (r.kind === 'member') return { kind: 'member', memberId: s('memberId'), storeId: s('storeId'), nickname: s('nickname'), no: s('no') }
   return NONE
 }
 

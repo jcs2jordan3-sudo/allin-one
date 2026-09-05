@@ -635,6 +635,33 @@ await test('매장이 있으면 bootstrap_store 는 여전히 거부 (추가 개
   await fails(() => q(`select bootstrap_store('셋째 매장')`), /이미 개설된 매장/)
   await as(ownerUid)
 })
+await test('admin_select_store → 개발자가 그 매장의 대표처럼: my_role owner(devScope)·소속 매장·직원 전용 RPC·감사 actor=개발자', async () => {
+  await as(devUid)
+  assert.equal((await one('select my_role() as r')).r.kind, 'none')
+  await fails(() => q(`select create_member('x')`), /직원 계정/)
+  await q(`select admin_select_store($1)`, [store2])
+  const r = (await one('select my_role() as r')).r
+  assert.equal(r.kind, 'staff'); assert.equal(r.role, 'owner'); assert.equal(r.storeId, store2); assert.equal(r.devScope, true)
+  assert.equal((await one('select staff_store_id() as s')).s, store2)
+  assert.equal((await one('select staff_role() as r')).r, 'owner')
+  const mid = (await one(`select create_member('개발자등록') as id`)).id
+  assert.equal((await one('select store_id from members where id = $1', [mid])).store_id, store2)
+  const a = await one(`select actor from audit_log where store_id = $1 and action = 'members.insert' order by ts desc limit 1`, [store2])
+  assert.equal(a.actor, '개발자')
+  const list = (await one(`select admin_list_stores() as j`)).j
+  assert.equal(list.find((x) => x.id === store2).selected, true)
+  assert.equal(list.find((x) => x.id === storeId).selected, false)
+  // 다른 매장으로 전환
+  await q(`select admin_select_store($1)`, [storeId])
+  assert.equal((await one('select staff_store_id() as s')).s, storeId)
+})
+await test('admin_select_store(null) → 스코프 해제, 일반 직원은 호출 불가', async () => {
+  await q(`select admin_select_store(null)`)
+  assert.equal((await one('select my_role() as r')).r.kind, 'none')
+  await fails(() => q(`select create_member('x')`), /직원 계정/)
+  await as(ownerUid)
+  await fails(() => q(`select admin_select_store($1)`, [store2]), /개발자/)
+})
 
 console.log(`\n${passed}개 테스트 통과`)
 await db.close()
