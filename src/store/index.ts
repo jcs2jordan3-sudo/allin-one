@@ -17,7 +17,7 @@ export const ensureStaffScope: (storeId: string, operatorName: string) => Promis
   db ? db.ensureStaffScope : async () => {}
 
 /** 클라우드 모드: 공개 페이지용 데이터 로드 (로컬 모드에서는 no-op) */
-export const ensurePublicScope: () => Promise<void> = db ? db.ensurePublicScope : async () => {}
+export const ensurePublicScope: (storeId?: string) => Promise<void> = db ? db.ensurePublicScope : async () => {}
 
 if (db) onSignOut(db.teardown)
 

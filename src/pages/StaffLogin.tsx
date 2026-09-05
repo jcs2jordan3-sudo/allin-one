@@ -6,6 +6,7 @@ import { errMsg } from '../store/map'
 import { Btn, Field, Input } from '../components/ui'
 import Splash from '../components/Splash'
 import { appUrl } from '../lib/url'
+import { fetchIsPlatformAdmin } from '../dev/api'
 
 /**
  * 콘솔 로그인 게이트 (클라우드 모드).
@@ -17,11 +18,15 @@ export default function StaffLogin() {
   const session = useAuth((s) => s.session)
   const role = useAuth((s) => s.role)
   const [hasStore, setHasStore] = useState<boolean | null>(null)
+  const [isDev, setIsDev] = useState(false)
 
   useEffect(() => {
     supabase!.from('stores').select('id').limit(1).then(({ data, error }) => {
       setHasStore(error ? true : (data?.length ?? 0) > 0)
     })
+    // 개발자(플랫폼 관리자) 계정이 콘솔 주소로 들어온 경우 → 개발자 콘솔로 안내
+    if (session) fetchIsPlatformAdmin().then(setIsDev)
+    else setIsDev(false)
   }, [session])
 
   if (hasStore === null) return <Splash text="확인 중…" />
@@ -31,6 +36,9 @@ export default function StaffLogin() {
     return (
       <Shell title="직원 계정이 아닙니다" sub={role.kind === 'member' ? '이 계정은 플레이어(회원) 계정입니다.' : '이 이메일로 초대된 직원 정보가 없습니다. 대표에게 초대를 요청하세요.'}>
         <div className="space-y-2">
+          {isDev && (
+            <Link to="/dev" className="block"><Btn variant="primary" className="w-full">개발자 콘솔로 이동</Btn></Link>
+          )}
           {role.kind === 'member' && (
             <a href={appUrl('/me')} className="block"><Btn className="w-full">내 정보(플레이어 페이지)로 이동</Btn></a>
           )}

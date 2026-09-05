@@ -8,6 +8,7 @@ import {
 } from '../lib/time'
 import { fmtNum } from '../lib/format'
 import { absUrl } from '../lib/url'
+import { withStore } from '../lib/storeUrl'
 import { hasSupabase } from '../lib/supabase'
 import { useSignupUrl } from '../components/SignupQr'
 
@@ -172,7 +173,7 @@ export default function DisplayBoard() {
           ) : (
             <>
               <div className="bg-white p-2.5 rounded-xl">
-                <QRCodeSVG value={absUrl('/rank')} size={110} />
+                <QRCodeSVG value={absUrl(withStore('/rank'))} size={110} />
               </div>
               <span className="text-[15px] text-white/60">{closed && hasSupabase ? '레지 마감 · 스캔하고 랭킹 확인' : '스캔하고 랭킹 확인'}</span>
             </>

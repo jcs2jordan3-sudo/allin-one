@@ -416,9 +416,12 @@ export function createDbStore(sb: SupabaseClient) {
   }
 
   /** 공개 스코프(전광판·공개 랭킹·QR 시트): 로그인 없이 읽을 수 있는 데이터만 */
-  const ensurePublicScope = async () => {
+  const ensurePublicScope = async (storeId?: string) => {
     if (scope !== 'none') return
-    const { data, error } = await sb.from('stores').select('id').order('created_at').limit(1).maybeSingle()
+    // ?s=매장id 가 있으면 그 매장, 없으면 첫 매장 (매장이 하나뿐인 배포와 호환)
+    let q = sb.from('stores').select('id').order('created_at').limit(1)
+    if (storeId) q = q.eq('id', storeId)
+    const { data, error } = await q.maybeSingle()
     if (error) throw new Error(errMsg(error))
     if (!data) throw new Error('개설된 매장이 없습니다. 관리자 콘솔에서 매장을 먼저 개설하세요.')
     await load('public', String(data.id), '')

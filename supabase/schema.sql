@@ -1518,8 +1518,98 @@ drop policy if exists audit_log_select on public.audit_log;
 create policy audit_log_select on public.audit_log for select using (store_id = public.staff_store_id());
 
 -- ---------------------------------------------------------------------
+-- 10b. 플랫폼 관리자(개발자) — 매장을 여러 개 개설하고 각 매장의 대표를 지정
+--   platform_admins 에 등록된 계정만 admin_* RPC 사용 가능. 등록은 SQL로만(클라이언트 접근 불가).
+--   흐름: 개발자 콘솔(/dev)에서 매장 개설 + 구매자 이메일 지정 → 구매자가 그 이메일로 콘솔 가입 → 자동으로 대표 연결
+-- ---------------------------------------------------------------------
+create table if not exists public.platform_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.platform_admins enable row level security;   -- 정책 없음: RPC(security definer)로만 접근
+
+create or replace function public.is_platform_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.platform_admins where user_id = auth.uid())
+$$;
+
+create or replace function public._require_platform_admin() returns void
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_platform_admin() then raise exception '개발자(플랫폼 관리자) 계정만 사용할 수 있습니다.'; end if;
+end $$;
+
+-- 매장 목록: 대표(이름·이메일·계정 연결 여부)·직원 수·회원 수
+create or replace function public.admin_list_stores() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', s.id, 'name', s.name, 'createdAt', s.created_at,
+      'owner', (select jsonb_build_object('name', o.name, 'email', o.email, 'linked', o.user_id is not null)
+                  from public.staff o where o.store_id = s.id and o.role = 'owner' order by o.created_at limit 1),
+      'staffCount', (select count(*) from public.staff x where x.store_id = s.id),
+      'memberCount', (select count(*) from public.members m where m.store_id = s.id and m.status = 'active')
+    ) order by s.created_at)
+    from public.stores s), '[]'::jsonb);
+end $$;
+
+-- 대표 지정/변경: 이메일을 owner로 (초대 행이 없으면 생성, 이미 가입된 계정이면 즉시 연결). 기존 다른 대표는 manager로 내림
+create or replace function public.admin_set_store_owner(p_store uuid, p_owner_email text, p_owner_name text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_email text := lower(trim(coalesce(p_owner_email, ''))); v_uid uuid; v_id uuid; v_other uuid;
+begin
+  perform public._require_platform_admin();
+  if not exists (select 1 from public.stores where id = p_store) then raise exception '매장을 찾을 수 없습니다.'; end if;
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then raise exception '대표 이메일 형식이 올바르지 않습니다.'; end if;
+  select id into v_uid from auth.users where lower(email) = v_email limit 1;
+  if v_uid is not null then
+    select store_id into v_other from public.staff where user_id = v_uid and store_id <> p_store limit 1;
+    if v_other is not null then
+      raise exception '이 이메일 계정은 이미 다른 매장의 직원입니다. 한 계정은 한 매장에만 소속될 수 있습니다.';
+    end if;
+  end if;
+  perform set_config('allinone.reset', 'on', true);   -- 행 단위 감사 로그(actor 없음) 대신 아래 한 줄로 기록
+  update public.staff set role = 'manager' where store_id = p_store and role = 'owner' and lower(email) <> v_email;
+  select id into v_id from public.staff where store_id = p_store and lower(email) = v_email limit 1;
+  if v_id is null then
+    insert into public.staff (store_id, user_id, email, name, role)
+    values (p_store, v_uid, v_email, coalesce(nullif(trim(p_owner_name), ''), '대표'), 'owner');
+  else
+    update public.staff set role = 'owner', user_id = coalesce(user_id, v_uid),
+           name = coalesce(nullif(trim(p_owner_name), ''), name)
+     where id = v_id;
+  end if;
+  perform set_config('allinone.reset', 'off', true);
+  insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
+  values (p_store, auth.uid(), '개발자', 'store.owner_set', 'staff', v_email,
+          jsonb_build_object('email', v_email, 'linked', v_uid is not null));
+end $$;
+
+-- 매장 개설 + 대표 초대 (서비스 구매자). 실패 시 전체 롤백
+create or replace function public.admin_create_store(p_store_name text, p_owner_email text, p_owner_name text default '대표') returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_store uuid;
+begin
+  perform public._require_platform_admin();
+  if coalesce(trim(p_store_name), '') = '' then raise exception '매장 이름을 입력해주세요.'; end if;
+  perform set_config('allinone.reset', 'on', true);
+  insert into public.stores (name) values (trim(p_store_name)) returning id into v_store;
+  insert into public.game_sets (store_id, name, data) values (v_store, '데일리 스탠다드', public._default_game_set());
+  perform public._ensure_store_defaults(v_store);
+  perform set_config('allinone.reset', 'off', true);
+  insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
+  values (v_store, auth.uid(), '개발자', 'store.create', 'store', v_store::text, jsonb_build_object('name', trim(p_store_name)));
+  perform public.admin_set_store_owner(v_store, p_owner_email, p_owner_name);
+  return v_store;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- 11. 실행 권한 — 내부 함수는 API에서 호출 불가
 -- ---------------------------------------------------------------------
+revoke all on function public._require_platform_admin() from public, anon, authenticated;
 revoke all on function public._move(uuid, text, text, text, bigint, text, text, uuid, text) from public, anon, authenticated;
 revoke all on function public._buyin(uuid, uuid, text, text, text, text) from public, anon, authenticated;
 revoke all on function public._require_staff(text[]) from public, anon, authenticated;

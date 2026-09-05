@@ -4,6 +4,7 @@ import { hasSupabase } from '../lib/supabase'
 import { signOut, useAuth } from '../auth'
 import { STAFF_ROLE_LABEL } from '../types'
 import { appUrl } from '../lib/url'
+import { withStore } from '../lib/storeUrl'
 import OfflineBanner from '../components/OfflineBanner'
 
 const SYNC_META: Record<SyncStatus, { label: string; dot: string; text: string }> = {
@@ -76,7 +77,7 @@ export default function ConsoleLayout() {
               </span>
             </div>
             <nav className="flex items-center gap-1 text-[16px] text-mut">
-              <a href={appUrl('/rank')} target="_blank" rel="noreferrer" className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2">
+              <a href={appUrl(withStore('/rank'))} target="_blank" rel="noreferrer" className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2">
                 공개 랭킹
               </a>
               <span className="px-2.5 py-1.5 hidden sm:inline">

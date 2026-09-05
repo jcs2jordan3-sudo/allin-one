@@ -15,6 +15,7 @@ import GameEditModal from '../components/GameEditModal'
 import WaitlistModal from '../components/WaitlistModal'
 import DateRangePicker from '../components/DateRangePicker'
 import { absUrl, appUrl } from '../lib/url'
+import { withStore } from '../lib/storeUrl'
 
 export default function DashboardTab() {
   const st = useStore()
@@ -42,7 +43,7 @@ export default function DashboardTab() {
   )
 
   const share = async (g: Game) => {
-    const url = absUrl(`/display/${g.id}`)
+    const url = absUrl(withStore(`/display/${g.id}`))
     try {
       await navigator.clipboard.writeText(url)
       setShareMsg('전광판 링크가 복사되었습니다')
@@ -251,7 +252,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
         <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
         <span className="flex-1" />
         <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
-        <a href={appUrl(`/display/${g.id}`)} target="_blank" rel="noreferrer">
+        <a href={appUrl(withStore(`/display/${g.id}`))} target="_blank" rel="noreferrer">
           <Btn sm variant="gold">타이머</Btn>
         </a>
       </div>
@@ -379,7 +380,7 @@ function TablesModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <Input type="number" value={t.no} onChange={(e) => update(i, { no: +e.target.value })} className="w-24" />
             <span className="text-sm text-mut w-14 text-right">좌석</span>
             <Input type="number" value={t.seats} onChange={(e) => update(i, { seats: +e.target.value })} className="w-24" />
-            <a href={appUrl(`/qr/${t.no}`)} target="_blank" rel="noreferrer">
+            <a href={appUrl(withStore(`/qr/${t.no}`))} target="_blank" rel="noreferrer">
               <Btn sm>QR 시트</Btn>
             </a>
             <Btn sm variant="ghost" onClick={() => setDraft(list.filter((_, j) => j !== i))}>삭제</Btn>

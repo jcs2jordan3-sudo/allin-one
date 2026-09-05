@@ -569,5 +569,72 @@ await test('실서버 형태(구 4인자 update_my_profile 존재)에 재적용 
   await as(ownerUid)
 })
 
+console.log('\n플랫폼 관리자(개발자)')
+await test('일반 직원(대표)은 admin_* 호출 불가, is_platform_admin = false', async () => {
+  await as(ownerUid)
+  await fails(() => q(`select admin_list_stores()`), /개발자/)
+  assert.equal((await one(`select is_platform_admin() as b`)).b, false)
+})
+const devUid = await signup('dev@test.com', { kind: 'platform_admin' })
+await q(`insert into platform_admins (user_id, email) values ($1, 'dev@test.com')`, [devUid])
+await test('개발자 계정: 회원 행 없음, is_platform_admin = true, 매장 목록에 대표·연결 여부·회원 수', async () => {
+  assert.equal((await q('select * from members where user_id = $1', [devUid])).length, 0)
+  await as(devUid)
+  assert.equal((await one(`select is_platform_admin() as b`)).b, true)
+  const list = (await one(`select admin_list_stores() as j`)).j
+  assert.equal(list.length, 1)
+  assert.equal(list[0].id, storeId)
+  assert.equal(list[0].owner.email, 'owner@test.com')
+  assert.equal(list[0].owner.linked, true)
+  assert.ok(list[0].memberCount >= 1)
+})
+let store2
+await test('admin_create_store → 새 매장 + 대표 초대 행(미연결) + 기본 게임 셋·이용권·시즌·지갑, 감사 로그 2줄', async () => {
+  store2 = (await one(`select admin_create_store('홍대 2호점', 'Buyer@Test.com', '구매자') as id`)).id
+  const list = (await one(`select admin_list_stores() as j`)).j
+  assert.equal(list.length, 2)
+  const s2 = list.find((x) => x.id === store2)
+  assert.equal(s2.name, '홍대 2호점')
+  assert.deepEqual(s2.owner, { name: '구매자', email: 'buyer@test.com', linked: false })
+  assert.equal((await one(`select count(*)::int n from game_sets where store_id = $1`, [store2])).n, 1)
+  assert.equal((await one(`select count(*)::int n from pass_types where store_id = $1`, [store2])).n, 3)
+  assert.equal((await one(`select count(*)::int n from seasons where store_id = $1`, [store2])).n, 1)
+  assert.equal((await one(`select count(*)::int n from wallets where store_id = $1 and owner = 'store'`, [store2])).n, 3)
+  const audit = await q(`select action from audit_log where store_id = $1`, [store2])
+  assert.deepEqual(audit.map((a) => a.action).sort(), ['store.create', 'store.owner_set'])
+})
+await test('구매자가 그 이메일로 콘솔 가입 → 2호점 대표로 자동 연결 (my_role = owner)', async () => {
+  const uid = await signup('buyer@test.com', { kind: 'staff' })
+  await as(uid)
+  const r = (await one('select my_role() as r')).r
+  assert.equal(r.kind, 'staff'); assert.equal(r.role, 'owner'); assert.equal(r.storeId, store2)
+  await as(devUid)
+  const s2 = (await one(`select admin_list_stores() as j`)).j.find((x) => x.id === store2)
+  assert.equal(s2.owner.linked, true)
+})
+await test('admin_set_store_owner: 기존 대표는 manager로, 새 이메일은 owner 초대 행 / 이미 가입된 계정이면 즉시 연결', async () => {
+  await q(`select admin_set_store_owner($1, 'second@test.com', '새대표')`, [store2])
+  const rows = await q(`select email, role, user_id is not null as linked from staff where store_id = $1 order by email`, [store2])
+  assert.deepEqual(rows, [
+    { email: 'buyer@test.com', role: 'manager', linked: true },
+    { email: 'second@test.com', role: 'owner', linked: false },
+  ])
+  const uid3 = await signup('third@test.com', { kind: 'staff' }) // 초대 전에 먼저 가입한 계정
+  await as(devUid)
+  await q(`select admin_set_store_owner($1, 'third@test.com', '셋째')`, [store2])
+  const t = await one(`select role, user_id from staff where store_id = $1 and email = 'third@test.com'`, [store2])
+  assert.equal(t.role, 'owner'); assert.equal(t.user_id, uid3)
+  assert.equal((await one(`select role from staff where store_id = $1 and email = 'second@test.com'`, [store2])).role, 'manager')
+})
+await test('다른 매장 직원 계정은 대표 지정 불가, 잘못된 이메일이면 매장 개설 자체가 롤백', async () => {
+  await fails(() => q(`select admin_set_store_owner($1, 'owner@test.com')`, [store2]), /다른 매장/)
+  await fails(() => q(`select admin_create_store('롤백매장', 'not-an-email')`), /이메일 형식/)
+  assert.equal((await one(`select count(*)::int n from stores where name = '롤백매장'`)).n, 0)
+})
+await test('매장이 있으면 bootstrap_store 는 여전히 거부 (추가 개설은 개발자 콘솔로)', async () => {
+  await fails(() => q(`select bootstrap_store('셋째 매장')`), /이미 개설된 매장/)
+  await as(ownerUid)
+})
+
 console.log(`\n${passed}개 테스트 통과`)
 await db.close()

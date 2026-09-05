@@ -12,6 +12,7 @@ import EndGameModal from '../components/EndGameModal'
 import GameEditModal from '../components/GameEditModal'
 import { Field, Select } from '../components/ui'
 import { appUrl } from '../lib/url'
+import { withStore } from '../lib/storeUrl'
 
 const SUBTABS = ['플레이어 리스트', '바인 리스트', '얼리버드', '참가 조건', '게임 스트럭쳐'] as const
 type SubTab = (typeof SUBTABS)[number]
@@ -52,7 +53,7 @@ export default function GameDetail() {
           {game.status !== 'ended' && (
             <>
               <Btn sm variant="primary" onClick={() => setJoinOpen(true)}>참가 등록</Btn>
-              <a href={appUrl(`/display/${game.id}`)} target="_blank" rel="noreferrer"><Btn sm variant="gold">전광판 열기</Btn></a>
+              <a href={appUrl(withStore(`/display/${game.id}`))} target="_blank" rel="noreferrer"><Btn sm variant="gold">전광판 열기</Btn></a>
               {!closed && <Btn sm onClick={() => setConfirmRegClose(true)}>레지 마감</Btn>}
               <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
               <Btn sm variant="danger" onClick={() => setEndOpen(true)}>게임 종료</Btn>

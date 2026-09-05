@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 import { hasSupabase } from './lib/supabase'
 import { useAuth } from './auth'
 import { ensurePublicScope, ensureStaffScope, useReady, useSession, useStore } from './store'
@@ -24,6 +24,7 @@ const GameJoinPage = lazy(() => import('./player/GameJoinPage'))
 const CheckinPage = lazy(() => import('./player/CheckinPage'))
 const ResetRequestPage = lazy(() => import('./pages/ResetPage').then((m) => ({ default: m.ResetRequestPage })))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPage').then((m) => ({ default: m.ResetPasswordPage })))
+const DevConsole = lazy(() => import('./pages/DevConsole'))
 
 const Lazy = ({ children }: { children: ReactNode }) => <Suspense fallback={<Splash text="불러오는 중…" />}>{children}</Suspense>
 
@@ -67,14 +68,16 @@ function PublicScope({ children }: { children: ReactNode }) {
   const status = useAuth((s) => s.status)
   const role = useAuth((s) => s.role)
   const ready = useReady((s) => s.ready)
+  const [params] = useSearchParams()
+  const storeParam = params.get('s') ?? undefined // 매장이 여러 개일 때 어느 매장의 공개 페이지인지
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!hasSupabase || status !== 'ready') return
     setLoadError(null)
-    const p = role.kind === 'staff' ? ensureStaffScope(role.storeId, role.name) : ensurePublicScope()
+    const p = role.kind === 'staff' ? ensureStaffScope(role.storeId, role.name) : ensurePublicScope(storeParam)
     p.catch((e) => setLoadError(String(e?.message ?? e)))
-  }, [status, role])
+  }, [status, role, storeParam])
 
   if (loadError) return <Splash text="데이터를 불러오지 못했습니다" sub={loadError} />
   if (!ready) return <Splash text="불러오는 중…" />
@@ -146,6 +149,7 @@ export default function App() {
       {/* 비밀번호 재설정 */}
       <Route path="/reset" element={<Lazy><ResetRequestPage /></Lazy>} />
       <Route path="/reset-password" element={<Lazy><ResetPasswordPage /></Lazy>} />
+      <Route path="/dev" element={<Lazy><DevConsole /></Lazy>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
