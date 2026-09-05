@@ -423,7 +423,11 @@ export function createDbStore(sb: SupabaseClient) {
     if (storeId) q = q.eq('id', storeId)
     const { data, error } = await q.maybeSingle()
     if (error) throw new Error(errMsg(error))
-    if (!data) throw new Error('개설된 매장이 없습니다. 관리자 콘솔에서 매장을 먼저 개설하세요.')
+    if (!data) {
+      throw new Error(storeId
+        ? '매장을 찾을 수 없습니다. QR이나 링크 주소를 다시 확인해주세요.'
+        : '개설된 매장이 없습니다. 관리자 콘솔에서 매장을 먼저 개설하세요.')
+    }
     await load('public', String(data.id), '')
   }
 
