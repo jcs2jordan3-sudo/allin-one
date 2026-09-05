@@ -6,6 +6,7 @@ import { create } from 'zustand'
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js'
 import { CLIENT_ID } from '../lib/supabase'
 import { emptyState } from './seed'
+import { defaultNotice } from '../lib/notice'
 import { useReady, useSyncStatus } from './status'
 import type { Actions, LocalOnlyKey, Store } from './types'
 import {
@@ -33,12 +34,17 @@ export function createDbStore(sb: SupabaseClient) {
 
   const fetchers: Record<Group, () => Promise<void>> = {
     async store() {
-      const { data, error } = await sb.from('stores').select('id, name, tables, biz_reset_at').eq('id', storeId!).single()
+      const [{ data, error }, cs] = await Promise.all([
+        sb.from('stores').select('id, name, tables, biz_reset_at').eq('id', storeId!).single(),
+        sb.from('console_state').select('state').eq('store_id', storeId!).maybeSingle(),
+      ])
       if (error) throw error
+      const saved = ((cs.data?.state as Record<string, unknown> | null)?.notice ?? {}) as Partial<Store['notice']>
       store.setState({
         storeName: String(data.name),
         tables: (data.tables as Store['tables']) ?? [],
         bizResetAt: data.biz_reset_at ? new Date(String(data.biz_reset_at)).getTime() : Date.now(),
+        notice: { ...defaultNotice(), ...saved },
       })
     },
     async members() {
@@ -303,6 +309,11 @@ export function createDbStore(sb: SupabaseClient) {
       saveStoreName(name) {
         if (!name.trim()) return Promise.resolve('매장 이름을 입력해주세요.')
         return run(() => sb.from('stores').update({ name: name.trim() }).eq('id', requireStore()), 'store', 'audit')
+      },
+      saveNotice(patch) {
+        const notice = { ...store.getState().notice, ...patch }
+        store.setState({ notice })
+        return run(() => sb.rpc('save_console_state', { p_key: 'notice', p_value: notice }), 'store', 'audit')
       },
       saveTables: (tables) => run(() => sb.from('stores').update({ tables }).eq('id', requireStore()), 'store', 'audit'),
       saveEvent: (post) =>

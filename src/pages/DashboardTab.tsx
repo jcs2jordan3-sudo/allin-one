@@ -14,6 +14,7 @@ import EndGameModal from '../components/EndGameModal'
 import GameEditModal from '../components/GameEditModal'
 import WaitlistModal from '../components/WaitlistModal'
 import DateRangePicker from '../components/DateRangePicker'
+import NoticeModal from '../components/NoticeModal'
 import { absUrl, appUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
 
@@ -28,6 +29,7 @@ export default function DashboardTab() {
 
   const [waitingOpen, setWaitingOpen] = useState(false)
   const [tablesOpen, setTablesOpen] = useState(false)
+  const [noticeOpen, setNoticeOpen] = useState(false)
   const [setsOpen, setSetsOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -64,6 +66,7 @@ export default function DashboardTab() {
           <span className="text-[17px] font-bold text-mut">빠른 작업</span>
           <div className="flex flex-col gap-2">
             <Btn sm variant="primary" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
+            <Btn sm onClick={() => setNoticeOpen(true)}>💬 카톡 공지</Btn>
             <Btn sm onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
           </div>
         </Card>
@@ -133,6 +136,7 @@ export default function DashboardTab() {
 
       <WaitlistModal open={waitingOpen} onClose={() => setWaitingOpen(false)} />
       <TablesModal open={tablesOpen} onClose={() => setTablesOpen(false)} />
+      {noticeOpen && <NoticeModal onClose={() => setNoticeOpen(false)} />}
       <GameSetsModal open={setsOpen} onClose={() => setSetsOpen(false)} />
       <CreateGameModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>

@@ -10,14 +10,12 @@ import { fmtNum } from '../lib/format'
 import { absUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
 import { hasSupabase } from '../lib/supabase'
-import { useSignupUrl } from '../components/SignupQr'
 
 /** 타이머 전광판 — TV/태블릿 전체화면용, 로그인 불필요 */
 export default function DisplayBoard() {
   const { id } = useParams()
   const game = useStore((s) => s.games.find((g) => g.id === id))
   const events = useStore((s) => s.events)
-  const signupUrl = useSignupUrl()
   const now = useNow(250)
   const [panel, setPanel] = useState<'prize' | 'notice'>('prize')
 
@@ -163,12 +161,6 @@ export default function DisplayBoard() {
                 <QRCodeSVG value={absUrl(`/g/${game.joinCode}`)} size={128} />
               </div>
               <span className="text-[15px] font-bold text-mint tracking-wide">스캔하고 포인트로 바인</span>
-              <div className="flex items-center gap-2 pt-1 border-t border-white/8 w-full justify-center">
-                <div className="bg-white p-1 rounded-md">
-                  <QRCodeSVG value={signupUrl} size={44} />
-                </div>
-                <span className="text-[13px] text-white/45 leading-tight">처음이면<br />회원가입</span>
-              </div>
             </>
           ) : (
             <>

@@ -28,6 +28,16 @@ export interface RpLogEntry {
   operator: string
 }
 
+/** 카톡 공지 템플릿 — 매장 직원이 함께 쓰는 값 (클라우드: console_state.state.notice) */
+export interface NoticeSettings {
+  title: string // 첫 줄. {요일} {매장명} {날짜} 치환
+  dealers: string // 오늘 근무 딜러. 비우면 딜러 직원 전원
+  lines: string // 🔥 줄들 (줄바꿈 구분). {전일랭커} 치환
+  notes: string // ": " 안내 줄들 (줄바꿈 구분)
+  attendanceTitle: string // 출석 명단 제목. 비우면 명단 생략
+  footer: string // 마지막 줄
+}
+
 export type StaffRole = 'owner' | 'manager' | 'dealer'
 export const STAFF_ROLE_LABEL: Record<StaffRole, string> = { owner: '대표', manager: '매니저', dealer: '딜러' }
 

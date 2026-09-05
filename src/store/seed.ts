@@ -3,6 +3,7 @@ import type {
   Season, TableInfo, WaitEntry,
 } from '../types'
 import type { StoreState } from './types'
+import { defaultNotice } from '../lib/notice'
 
 export const uid = () => crypto.randomUUID().slice(0, 8)
 export const DAY = 86_400_000
@@ -63,6 +64,7 @@ export function defaultLocalExtras() {
     auditLog: [],
     ledgerRange: defaultRange(),
     historyRange: defaultRange(),
+    notice: defaultNotice(),
   }
 }
 
@@ -83,6 +85,7 @@ export function emptyState(): StoreState {
     auditLog: [],
     ledgerRange: defaultRange(),
     historyRange: defaultRange(),
+    notice: defaultNotice(),
     wallet: { P: 0, S: 0, V: 0 },
     members: [],
     managers: [],
@@ -223,5 +226,6 @@ export function seedState(): StoreState {
     auditLog: [],
     ledgerRange: defaultRange(),
     historyRange: defaultRange(),
+    notice: defaultNotice(),
   }
 }

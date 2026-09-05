@@ -412,6 +412,10 @@ function coreActions(set: SetState, get: GetState): Omit<Actions, LocalOnlyKey> 
       set({ storeName: name.trim() })
       return null
     },
+    async saveNotice(patch) {
+      set({ notice: { ...get().notice, ...patch } })
+      return null
+    },
 
     async setLedgerRange(range) {
       set({ ledgerRange: range })

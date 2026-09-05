@@ -663,6 +663,33 @@ await test('admin_select_store(null) → 스코프 해제, 일반 직원은 호�
   await fails(() => q(`select admin_select_store($1)`, [store2]), /개발자/)
 })
 
+console.log('\n카톡 공지 통계 · 콘솔 공용 설정')
+await test('save_console_state → console_state.state[key] 저장·병합, 잘못된 키·비직원 거부', async () => {
+  await as(ownerUid)
+  await q(`select save_console_state('notice', '{"title":"t1"}'::jsonb)`)
+  await q(`select save_console_state('other', '1'::jsonb)`)
+  const st = (await one('select state from console_state where store_id = $1', [storeId])).state
+  assert.deepEqual(st.notice, { title: 't1' }); assert.equal(st.other, 1)
+  await fails(() => q(`select save_console_state('bad key', '1'::jsonb)`), /잘못된 키/)
+  await as(null)
+  await fails(() => q(`select save_console_state('notice', '{}'::jsonb)`), /직원 계정/)
+  await as(ownerUid)
+})
+await test('notice_stats: 전일(영업일 06시 기준) RP 상위, 전주(월~일) 체크인·참가 출석 닉네임', async () => {
+  const a = (await one(`select create_member('출석A') as id`)).id
+  const b = (await one(`select create_member('출석B') as id`)).id
+  const c = (await one(`select create_member('전일랭커') as id`)).id
+  // 기준 2026-09-05(토) 20:00 KST → 영업일 09-05, 전일 = 09-04 06:00~09-05 06:00, 전주 = 08-24 06:00~08-31 06:00
+  await q(`insert into rp_log (store_id, ts, member_id, delta, reason) values
+           ($1, '2026-09-04 22:00+09', $2, 500, 't'), ($1, '2026-09-05 02:00+09', $3, 300, 't'), ($1, '2026-09-03 22:00+09', $4, 900, 'x')`, [storeId, c, a, b])
+  await q(`insert into waitlist (store_id, member_id, status, arrived_at) values
+           ($1, $2, 'left', '2026-08-26 20:00+09'), ($1, $3, 'noshow', '2026-08-27 20:00+09'), ($1, $4, 'seated', '2026-09-02 20:00+09')`, [storeId, a, b, c])
+  const r = (await one(`select notice_stats('2026-09-05 20:00+09') as j`)).j
+  assert.equal(r.bizDay, '2026-09-05')
+  assert.deepEqual(r.yesterdayTop.map((x) => x.nickname), ['전일랭커', '출석A'])
+  assert.deepEqual(r.attendance, ['출석A'])
+})
+
 console.log('\n회원 명단 뷰 (members_public)')
 await test('회원은 소속 매장 회원 명단(닉네임 공개)만 보고, 다른 매장 회원·실명·전화번호는 안 보임', async () => {
   const uid = await signup('roster@test.com', { kind: 'member', nickname: '명단회원', real_name: '명단실명', phone: '010-9999-1111' })

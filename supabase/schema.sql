@@ -616,6 +616,55 @@ begin
   where id = v_id;
 end $$;
 
+-- 콘솔 공용 설정 저장: console_state.state[p_key] = p_value (카톡 공지 템플릿처럼 매장 직원이 함께 쓰는 값)
+create or replace function public.save_console_state(p_key text, p_value jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff;
+begin
+  s := public._require_staff();
+  if p_key is null or p_key !~ '^[a-z_]{1,32}$' then raise exception '잘못된 키입니다.'; end if;
+  insert into public.console_state (store_id, state, writer, updated_at)
+  values (s.store_id, jsonb_build_object(p_key, coalesce(p_value, 'null'::jsonb)), s.name, now())
+  on conflict (store_id) do update
+    set state = jsonb_set(coalesce(public.console_state.state, '{}'::jsonb), array[p_key], coalesce(p_value, 'null'::jsonb), true),
+        writer = s.name, updated_at = now();
+end $$;
+
+-- 카톡 공지 생성용 통계 (직원 전용). 영업일 = 06:00(KST) 기준으로 잘라 자정 넘긴 부도 같은 날로 본다.
+--   yesterdayTop: 전일 영업일 RP 획득 상위 3명, attendance: 전주(월 06:00 ~ 이번주 월 06:00) 체크인 또는 게임 참가 회원 닉네임
+create or replace function public.notice_stats(p_now timestamptz default now()) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  s public.staff;
+  v_kst timestamp := p_now at time zone 'Asia/Seoul';
+  v_day date; v_y_from timestamptz; v_y_to timestamptz; v_w_from timestamptz; v_w_to timestamptz;
+begin
+  s := public._require_staff();
+  v_day := (v_kst - interval '6 hours')::date;
+  v_y_from := ((v_day - 1)::timestamp + interval '6 hours') at time zone 'Asia/Seoul';
+  v_y_to := (v_day::timestamp + interval '6 hours') at time zone 'Asia/Seoul';
+  v_w_from := (date_trunc('week', v_day::timestamp) - interval '7 days' + interval '6 hours') at time zone 'Asia/Seoul';
+  v_w_to := (date_trunc('week', v_day::timestamp) + interval '6 hours') at time zone 'Asia/Seoul';
+  return jsonb_build_object(
+    'bizDay', v_day,
+    'yesterdayTop', coalesce((
+      select jsonb_agg(jsonb_build_object('nickname', m.nickname, 'rp', t.rp) order by t.rp desc)
+        from (select member_id, sum(delta) as rp from public.rp_log
+               where store_id = s.store_id and ts >= v_y_from and ts < v_y_to
+               group by member_id having sum(delta) > 0 order by sum(delta) desc limit 3) t
+        join public.members m on m.id = t.member_id), '[]'::jsonb),
+    'attendance', coalesce((
+      select jsonb_agg(x.nickname order by x.nickname) from (
+        select distinct m.nickname from public.members m
+         where m.store_id = s.store_id and m.status = 'active' and (
+           exists (select 1 from public.waitlist w where w.member_id = m.id and w.store_id = s.store_id
+                     and w.arrived_at >= v_w_from and w.arrived_at < v_w_to and w.status in ('waiting', 'called', 'seated', 'left'))
+           or exists (select 1 from public.game_entries e join public.games g on g.id = e.game_id
+                       where e.member_id = m.id and g.store_id = s.store_id and not g.cancelled
+                         and g.started_at >= v_w_from and g.started_at < v_w_to))) x), '[]'::jsonb)
+  );
+end $$;
+
 -- ---------------------------------------------------------------------
 -- 7. RPC — 게임 운영
 -- ---------------------------------------------------------------------

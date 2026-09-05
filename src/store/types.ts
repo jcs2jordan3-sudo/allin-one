@@ -1,5 +1,5 @@
 import type {
-  AuditEntry, BuyinType, Currency, DateRange, EventPost, Game, GameSet, LedgerEntry, Manager, Member, Pass,
+  AuditEntry, BuyinType, Currency, DateRange, EventPost, Game, GameSet, LedgerEntry, Manager, Member, NoticeSettings, Pass,
   PassLogEntry, PassType, PrizeRule, RpLogEntry, Season, StaffRole, TableInfo, WaitEntry, WaitStatus,
 } from '../types'
 
@@ -27,6 +27,7 @@ export interface StoreState {
   auditLog: AuditEntry[]
   ledgerRange: DateRange // 거래내역 조회 기간 (서버 조회 상한 대응)
   historyRange: DateRange // 게임 기록 조회 기간
+  notice: NoticeSettings // 카톡 공지 템플릿
 }
 
 /** 액션 결과: 오류 메시지(문자열) 또는 null(성공) */
@@ -68,6 +69,7 @@ export interface Actions {
   setLockPin: (pin: string | null) => Result
   saveStoreName: (name: string) => Result
   saveTables: (tables: TableInfo[]) => Result
+  saveNotice: (patch: Partial<NoticeSettings>) => Result
   saveEvent: (post: Partial<EventPost> & { title: string; body: string }) => Result
   removeEvent: (id: string) => Result
   // 이용권
