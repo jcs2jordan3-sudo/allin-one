@@ -6,17 +6,9 @@ import Avatar from '../components/Avatar'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-/** 동점자 동순위 + 차순위 건너뛰기 (예: 3위 2명 → 다음은 5위) */
-export function withCompetitionRanks<T extends { rp: number }>(sorted: T[]): { item: T; rank: number }[] {
-  let lastRp: number | null = null
-  let lastRank = 0
-  return sorted.map((item, i) => {
-    const rank = item.rp === lastRp ? lastRank : i + 1
-    lastRp = item.rp
-    lastRank = rank
-    return { item, rank }
-  })
-}
+/** 동점자 동순위 + 차순위 건너뛰기 (예: 3위 2명 → 다음은 5위) — 회원 페이지와 공용이라 lib/rank 로 이동 */
+import { withCompetitionRanks } from '../lib/rank'
+export { withCompetitionRanks }
 
 export default function RankingTab() {
   const st = useStore()

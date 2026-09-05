@@ -76,6 +76,42 @@ export function subscribeMe(memberId: string, onChange: () => void): () => void 
   return () => { void sb().removeChannel(ch) }
 }
 
+/** 매장 게임·참가 변동(다른 회원의 바인·탈락 포함) → 회원 페이지의 게임 목록·참가자 미리보기 갱신 */
+export function subscribeStoreGames(storeId: string, onChange: () => void): () => void {
+  const ch = sb()
+    .channel(`allinone-store-games-${storeId}-${CLIENT_ID}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `store_id=eq.${storeId}` }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'game_entries' }, onChange)
+    .subscribe()
+  return () => { void sb().removeChannel(ch) }
+}
+
+/** 같은 매장 회원 명단 — 서버 뷰(members_public)가 소속 매장으로 제한하고 실명·전화번호는 내주지 않는다 */
+export interface RosterMember {
+  id: string
+  no: string
+  nickname: string
+  emoji: string
+  color: string
+  rp: number
+}
+export async function fetchRoster(): Promise<RosterMember[]> {
+  const { data, error } = await sb().from('members_public').select('*').order('rp', { ascending: false })
+  if (error) throw new Error(errMsg(error))
+  return (data as Row[]).map((r) => ({
+    id: String(r.id), no: String(r.no ?? ''), nickname: String(r.nickname ?? '회원'),
+    emoji: String(r.emoji ?? '🙂'), color: String(r.color ?? '#57B6F2'), rp: Number(r.rp ?? 0),
+  }))
+}
+
+/** 진행 중(없으면 마감된) 시즌 이름 — 회원 페이지 랭킹 카드용 */
+export async function fetchOpenSeason(storeId: string): Promise<{ id: string; name: string } | null> {
+  const { data } = await sb().from('seasons_public').select('seasons').eq('store_id', storeId).maybeSingle()
+  const list = ((data as Row | null)?.seasons ?? []) as Array<{ id: string; name: string; status: string }>
+  const s = list.find((x) => x.status === 'open') ?? list.find((x) => x.status === 'closed') ?? null
+  return s ? { id: String(s.id), name: String(s.name) } : null
+}
+
 /** 진행·예약 중인 게임 (공개) */
 export async function fetchOpenGames(storeId: string): Promise<Game[]> {
   const { data, error } = await sb()

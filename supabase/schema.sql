@@ -1441,6 +1441,15 @@ create or replace view public.seasons_public as
                     'closedAt', (extract(epoch from closed_at) * 1000)::bigint) order by started_at desc), '[]'::jsonb) as seasons
     from public.seasons group by store_id;
 
+-- 같은 매장 회원끼리 보는 명단(닉네임·아바타·RP, 마스킹 없음) — 회원 페이지의 참가자 목록·매장 랭킹용.
+--   직원은 자기 매장, 회원은 소속 매장만. 로그인하지 않으면 0건. 실명·전화번호는 포함하지 않음.
+create or replace view public.members_public as
+  select m.id, m.store_id, m.no, m.nickname, m.emoji, m.color, m.rp
+    from public.members m
+   where m.status = 'active'
+     and m.store_id = coalesce(public.staff_store_id(),
+                               (select store_id from public.members where user_id = auth.uid() limit 1));
+
 -- ---------------------------------------------------------------------
 -- 10. RLS
 -- ---------------------------------------------------------------------
@@ -1667,6 +1676,7 @@ revoke all on function public._ensure_store_defaults(uuid) from public, anon, au
 revoke all on function public._seat_count(uuid, int) from public, anon, authenticated;
 grant select on public.ranking_public to anon, authenticated;
 grant select on public.seasons_public to anon, authenticated;
+grant select on public.members_public to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 12. Realtime

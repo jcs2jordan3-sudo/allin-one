@@ -12,7 +12,8 @@ import Avatar from '../components/Avatar'
 import PlayerShell from './PlayerShell'
 import AuthForm from './AuthForm'
 import { LocalNotice } from './JoinPage'
-import { fetchGameByCode, fetchMe, selfBuyin, subscribeGame, subscribeMe, type BuyinResult, type GameByCode, type MyInfo } from './api'
+import { fetchGameByCode, fetchMe, fetchRoster, selfBuyin, subscribeGame, subscribeMe, type BuyinResult, type GameByCode, type MyInfo, type RosterMember } from './api'
+import { ParticipantList, toRosterMap } from './Participants'
 
 /** 전광판 QR → 셀프 바인 페이지 (/g/:code) */
 export default function GameJoinPage() {
@@ -48,6 +49,13 @@ export default function GameJoinPage() {
     fetchMe(userId).then(setMe).catch(() => setMe(null))
   }, [userId])
   useEffect(() => { if (role.kind === 'member') loadMe() }, [role.kind, loadMe])
+
+  // 참가자 이름표: 같은 매장 회원 명단 (게임 변동 때마다 새 회원이 있을 수 있어 함께 갱신)
+  const [roster, setRoster] = useState<RosterMember[]>([])
+  useEffect(() => {
+    if (role.kind !== 'member') { setRoster([]); return }
+    fetchRoster().then(setRoster).catch(() => {})
+  }, [role.kind, data])
   useEffect(() => {
     if (!memberId) return
     return subscribeMe(memberId, loadMe)
@@ -116,6 +124,17 @@ export default function GameJoinPage() {
           <Stat label="PLAYERS" value={`${game.entries.filter((e) => e.status === 'playing').length}/${game.entries.length}`} />
         </div>
         {game.notice && <div className="mt-3 text-[15px] text-gold bg-gold/10 border border-gold/25 rounded-xl px-3 py-2">{game.notice}</div>}
+      </Card>
+
+      {/* 참가자 — 누가 치고 있는지 보고 오는 손님이 많아 닉네임 그대로 표시 */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold">참가자</h2>
+          <span className="text-[14px] text-mut num">{game.entries.filter((e) => e.status === 'playing').length}명 참여 중</span>
+        </div>
+        {role.kind === 'member'
+          ? <ParticipantList entries={game.entries} roster={toRosterMap(roster)} myId={me?.member.id} />
+          : <p className="text-sm text-mut">로그인하면 누가 참가 중인지 볼 수 있어요.</p>}
       </Card>
 
       {/* 성공 */}

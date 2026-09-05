@@ -663,5 +663,27 @@ await test('admin_select_store(null) → 스코프 해제, 일반 직원은 호�
   await fails(() => q(`select admin_select_store($1)`, [store2]), /개발자/)
 })
 
+console.log('\n회원 명단 뷰 (members_public)')
+await test('회원은 소속 매장 회원 명단(닉네임 공개)만 보고, 다른 매장 회원·실명·전화번호는 안 보임', async () => {
+  const uid = await signup('roster@test.com', { kind: 'member', nickname: '명단회원', real_name: '명단실명', phone: '010-9999-1111' })
+  await as(uid)
+  const rows = await q(`select * from members_public order by rp desc`)
+  assert.ok(rows.length >= 2)
+  assert.ok(rows.every((r) => r.store_id === storeId))
+  assert.ok(rows.some((r) => r.nickname === '명단회원'))
+  assert.ok(!rows.some((r) => r.nickname === '개발자등록')) // 2호점 회원
+  assert.deepEqual(Object.keys(rows[0]).sort(), ['color', 'emoji', 'id', 'nickname', 'no', 'rp', 'store_id'])
+})
+await test('비로그인은 0건, 개발자가 2호점을 보는 중이면 2호점 명단', async () => {
+  await as(null)
+  assert.equal((await q(`select * from members_public`)).length, 0)
+  await as(devUid)
+  await q(`select admin_select_store($1)`, [store2])
+  const rows = await q(`select nickname from members_public`)
+  assert.deepEqual(rows.map((r) => r.nickname), ['개발자등록'])
+  await q(`select admin_select_store(null)`)
+  await as(ownerUid)
+})
+
 console.log(`\n${passed}개 테스트 통과`)
 await db.close()

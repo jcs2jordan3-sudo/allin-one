@@ -15,9 +15,13 @@ import PasswordChange from '../components/PasswordChange'
 import PlayerShell from './PlayerShell'
 import { LocalNotice } from './JoinPage'
 import { WAIT_STATUS_LABEL, type Pass, type PassType, type WaitEntry } from '../types'
-import { checkinSelf, checkoutSelf, fetchMe, fetchMyGames, fetchMyPasses, fetchMyWait, fetchOpenGames, fetchStoreName, subscribeMe, updateMyProfile, type MyInfo } from './api'
+import { withCompetitionRanks } from '../lib/rank'
+import { ParticipantPreview, toRosterMap } from './Participants'
+import { checkinSelf, checkoutSelf, fetchMe, fetchMyGames, fetchMyPasses, fetchMyWait, fetchOpenGames, fetchOpenSeason, fetchRoster, fetchStoreName, subscribeMe, subscribeStoreGames, updateMyProfile, type MyInfo, type RosterMember } from './api'
 
-/** 회원 내 정보 — 지갑·회원번호·진행 중 게임·참가 현황·최근 거래 */
+const MEDALS = ['🥇', '🥈', '🥉']
+
+/** 회원 내 정보 — 지갑·회원번호·매장 랭킹·진행 중 게임(참가자)·참가 현황·최근 거래 */
 export default function MePage() {
   const navigate = useNavigate()
   const status = useAuth((s) => s.status)
@@ -33,6 +37,9 @@ export default function MePage() {
   const [passes, setPasses] = useState<{ passes: Pass[]; types: PassType[] }>({ passes: [], types: [] })
   const [waitBusy, setWaitBusy] = useState(false)
   const [waitErr, setWaitErr] = useState<string | null>(null)
+  const [roster, setRoster] = useState<RosterMember[]>([])
+  const [season, setSeason] = useState<{ id: string; name: string } | null>(null)
+  const [rankOpen, setRankOpen] = useState(false)
 
   useEffect(() => {
     if (status === 'ready' && !session) navigate('/join?r=/me', { replace: true })
@@ -50,6 +57,8 @@ export default function MePage() {
     fetchStoreName(storeId).then((s) => setStoreName(s?.name ?? '')).catch(() => {})
     fetchMyWait(memberId).then((w) => setWait(w?.entry ?? null)).catch(() => {})
     fetchMyPasses(memberId).then(setPasses).catch(() => {})
+    fetchRoster().then(setRoster).catch(() => {})
+    fetchOpenSeason(storeId).then(setSeason).catch(() => {})
   }, [userId, memberId, storeId])
 
   const doCheckin = async () => {
@@ -71,6 +80,10 @@ export default function MePage() {
     if (!memberId) return
     return subscribeMe(memberId, load)
   }, [memberId, load])
+  useEffect(() => {
+    if (!storeId) return
+    return subscribeStoreGames(storeId, load)
+  }, [storeId, load])
 
   if (!hasSupabase) return <LocalNotice />
   if (status === 'loading' || !session) return <Splash text="불러오는 중…" />
@@ -102,6 +115,9 @@ export default function MePage() {
   if (me === null) return <Splash text="내 정보를 불러오지 못했습니다" sub="네트워크를 확인하고 다시 시도해주세요." />
 
   const m = me.member
+  const rosterMap = toRosterMap(roster)
+  const ranked = withCompetitionRanks([...roster].filter((r) => r.rp > 0).sort((a, b) => b.rp - a.rp))
+  const myRank = ranked.find((r) => r.item.id === m.id)?.rank ?? null
 
   return (
     <PlayerShell
@@ -139,6 +155,34 @@ export default function MePage() {
         </p>
       </Card>
 
+      {/* 매장 랭킹 */}
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-bold tracking-widest text-faint">
+              매장 랭킹{season && <span className="ml-1.5 text-mut tracking-normal font-semibold">{season.name}</span>}
+            </div>
+            <div className="mt-0.5 font-bold">
+              {myRank
+                ? <>내 순위 <span className="text-gold num text-lg">{myRank}위</span><span className="text-mut font-normal text-[15px]"> / {ranked.length}명</span></>
+                : <span className="text-mut font-normal text-[15px]">RP를 모으면 순위에 올라요</span>}
+            </div>
+          </div>
+          <Btn sm onClick={() => setRankOpen(true)}>전체 보기</Btn>
+        </div>
+        {ranked.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+            {ranked.slice(0, 3).map(({ item, rank }) => (
+              <span key={item.id} className="inline-flex items-center gap-1.5 text-[15px]">
+                <span>{MEDALS[rank - 1] ?? `${rank}위`}</span>
+                <Avatar emoji={item.emoji} color={item.color} size={22} />
+                <span className={item.id === m.id ? 'text-mint font-bold' : 'text-mut'}>{item.nickname}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* 체크인 · 이용권 */}
       <Card className="p-4 flex items-center gap-3 flex-wrap">
         <div className="min-w-0 flex-1">
@@ -159,10 +203,23 @@ export default function MePage() {
         {(() => {
           const valid = passes.passes.filter((p) => p.status === 'unused' && Date.now() <= p.expiresAt)
           if (valid.length === 0) return null
-          const names = [...new Set(valid.map((p) => passes.types.find((t) => t.id === p.typeId)?.name ?? '이용권'))]
+          // 종류별 장수와 가장 빠른 만료일
+          const groups = [...new Set(valid.map((p) => p.typeId))].map((typeId) => {
+            const list = valid.filter((p) => p.typeId === typeId)
+            const t = passes.types.find((x) => x.id === typeId)
+            return { key: typeId, name: t?.name ?? '이용권', color: t?.color ?? '#57B6F2', count: list.length, soonest: Math.min(...list.map((p) => p.expiresAt)) }
+          })
           return (
-            <div className="w-full text-[15px] text-mut border-t border-line pt-2 mt-1">
-              🎫 이용권 <span className="text-ink font-semibold num">{valid.length}장</span> · {names.join(', ')}
+            <div className="w-full border-t border-line pt-2 mt-1 space-y-1">
+              <div className="text-[13px] font-bold tracking-widest text-faint">🎫 내 이용권 <span className="text-ink num">{valid.length}장</span></div>
+              {groups.map((g) => (
+                <div key={g.key} className="flex items-center gap-2 text-[15px]">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: g.color }} />
+                  <span className="font-semibold">{g.name}</span>
+                  <span className="text-ink num">{g.count}장</span>
+                  <span className="ml-auto text-[14px] text-faint num">{fmtDateTime(g.soonest).slice(0, 10)} 까지</span>
+                </div>
+              ))}
             </div>
           )
         })()}
@@ -188,6 +245,7 @@ export default function MePage() {
                         {g.entries.filter((e) => e.status === 'playing').length}명 참여 중
                         {mineEntry && ` · 내 좌석 T${mineEntry.table}-${mineEntry.seat}`}
                       </div>
+                      <div className="mt-1.5"><ParticipantPreview entries={g.entries} roster={rosterMap} myId={m.id} /></div>
                     </div>
                     {scheduled ? <Badge tone="sky">예약</Badge> : closed ? <Badge tone="rose">마감</Badge> : <Badge tone="mint">바인 가능 ›</Badge>}
                   </Card>
@@ -247,7 +305,38 @@ export default function MePage() {
       </section>
 
       {editOpen && <ProfileModal me={me} onClose={() => { setEditOpen(false); load() }} />}
+      {rankOpen && <RankingModal ranked={ranked} myId={m.id} season={season} onClose={() => setRankOpen(false)} />}
     </PlayerShell>
+  )
+}
+
+/** 매장 전체 랭킹 (같은 매장 회원에게는 닉네임 그대로 표시) */
+function RankingModal({ ranked, myId, season, onClose }: {
+  ranked: { item: RosterMember; rank: number }[]
+  myId: string
+  season: { id: string; name: string } | null
+  onClose: () => void
+}) {
+  return (
+    <Modal open onClose={onClose} title={`매장 랭킹${season ? ` · ${season.name}` : ''}`}>
+      {ranked.length === 0 ? (
+        <div className="text-center text-mut text-sm py-6">아직 랭킹 데이터가 없습니다.</div>
+      ) : (
+        <div className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
+          {ranked.map(({ item, rank }) => {
+            const mine = item.id === myId
+            return (
+              <div key={item.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${mine ? 'border-mint/50 bg-mint/8' : 'border-line bg-surface2/40'}`}>
+                <span className="w-8 text-center font-bold num">{MEDALS[rank - 1] ?? rank}</span>
+                <Avatar emoji={item.emoji} color={item.color} size={28} />
+                <span className={`font-semibold truncate flex-1 ${mine ? 'text-mint' : ''}`}>{item.nickname}{mine && ' (나)'}</span>
+                <span className="num font-bold">{fmtNum(item.rp)}<span className="text-[13px] text-faint ml-0.5">RP</span></span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Modal>
   )
 }
 
