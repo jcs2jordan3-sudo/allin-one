@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { selTotalChips, useStore } from '../store'
-import type { Game } from '../types'
+import type { BlindLevel, Game } from '../types'
 import {
   fmtClock, fmtCountdown, gameElapsedMs, isRegClosed, isScheduled, levelAt, nextLevel, regCloseRemainMs, useNow,
 } from '../lib/time'
@@ -43,7 +43,7 @@ export default function LiveBoard() {
   const d = new Date(now)
 
   return (
-    <div className="min-h-screen stage-bg text-ink flex flex-col p-6 gap-6">
+    <div className="min-h-screen stage-bg text-ink flex flex-col p-6 max-sm:p-3 gap-6 max-sm:gap-4">
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <div className="font-extrabold tracking-tight text-sm text-white/60">
@@ -65,9 +65,9 @@ export default function LiveBoard() {
           <div className="text-mut text-lg">게임이 시작되면 이 화면에 자동으로 나타납니다.</div>
         </div>
       ) : (
-        // 게임 수와 상관없이 카드를 한 줄에 나란히(폭 균등). 글자는 카드 폭 기준(cqw)으로 맞춰지므로 줄이 늘어나지 않는다.
-        // 폰(640px 미만)만 세로로 쌓는다. TV에서는 세로 중앙 정렬.
-        <div className="flex-1 grid grid-cols-1 sm:grid-flow-col sm:auto-cols-fr gap-5 content-center">
+        // 게임 수·화면 폭과 상관없이 카드를 한 줄에 나란히(폭 균등) — 폰도 동일. 글자는 카드 폭 기준(cqw)이라 카드가 좁아지면 같이 줄어든다.
+        // TV에서는 세로 중앙 정렬.
+        <div className="flex-1 grid grid-flow-col auto-cols-fr gap-5 max-sm:gap-2 content-center">
           {live.map((g) => <GameCard key={g.id} game={g} now={now} />)}
         </div>
       )}
@@ -110,13 +110,26 @@ export default function LiveBoard() {
 
 // 글자 크기는 화면이 아니라 카드 폭(cqw) 기준 — 한 줄에 카드가 몇 개든 카드 안에 맞게 줄어든다
 // 폭 계산: MM:SS 5자·H:MM:SS 7자 → 18cqw면 최대 78cqw, HH:MM:SS 8자 → 13cqw면 64cqw, 블라인드 21자 → 6cqw면 73cqw
-const timerCls = 'text-[clamp(40px,18cqw,150px)]'
-const clockCls = 'text-[clamp(32px,13cqw,120px)]'
-const blindCls = 'text-[clamp(14px,6cqw,48px)]'
-const labelCls = 'text-[clamp(14px,3cqw,22px)]'
-const nextCls = 'text-[clamp(10px,2.4cqw,18px)]'
-const titleCls = 'text-[clamp(18px,3.6cqw,30px)]'
-const statCls = 'text-[clamp(15px,3cqw,24px)]'
+// 검은 굵기 숫자는 폭이 약 0.72em, 콜론 0.3em: MM:SS≈3.2em → 16cqw면 51cqw, H:MM:SS≈4.2em → 67cqw, HH:MM:SS≈4.9em → 12cqw면 59cqw
+const timerCls = 'text-[clamp(14px,16cqw,150px)]'
+const clockCls = 'text-[clamp(12px,12cqw,120px)]'
+
+// 아주 좁은 카드(@max-2xs, 288px 미만 — 폰에 게임 2개 이상)에서는 5,000/10,000 (10,000) 대신 5K/10K (10K)
+const fmtK = (n: number) => (n >= 1000 ? (n % 1000 === 0 ? `${n / 1000}K` : `${(n / 1000).toFixed(1)}K`) : String(n))
+const blindText = (l: BlindLevel, compact: boolean) =>
+  l.type === 'break' ? 'BREAK' : compact ? `${fmtK(l.sb)}/${fmtK(l.bb)} (${fmtK(l.ante)})` : `${fmtNum(l.sb)}/${fmtNum(l.bb)} (${fmtNum(l.ante)})`
+const Blinds = ({ level }: { level: BlindLevel }) => (
+  <>
+    <span className="@max-2xs:hidden">{blindText(level, false)}</span>
+    <span className="hidden @max-2xs:inline">{blindText(level, true)}</span>
+  </>
+)
+const blindCls = 'text-[clamp(9px,6cqw,48px)]'
+const labelCls = 'text-[clamp(10px,3.2cqw,22px)]'
+const nextCls = 'text-[clamp(8px,2.4cqw,18px)]'
+const titleCls = 'text-[clamp(12px,3.6cqw,30px)]'
+const badgeCls = 'text-[clamp(9px,2.4cqw,14px)] font-bold rounded-sm px-2 @max-3xs:px-1 py-0.5 border whitespace-nowrap'
+const statCls = 'text-[clamp(10px,3cqw,24px)]'
 
 function GameCard({ game, now }: { game: Game; now: number }) {
   const elapsed = gameElapsedMs(game, now)
@@ -138,16 +151,18 @@ function GameCard({ game, now }: { game: Game; now: number }) {
   ]
 
   return (
+    // 컨테이너 쿼리는 조상 컨테이너 기준으로 평가되므로, 카드 자체의 여백(@max-sm:p-3)까지 줄이려면 래퍼가 컨테이너여야 한다
+    <div className="@container min-w-0">
     <Link
       to={withStore(`/display/${game.id}`)}
-      className="@container block min-w-0 bg-black/40 border border-white/8 rounded-2xl backdrop-blur p-6 @max-sm:p-4 hover:border-mint/40 transition-colors"
+      className="block h-full min-w-0 bg-black/40 border border-white/8 rounded-2xl backdrop-blur p-6 @max-sm:p-3 hover:border-mint/40 transition-colors"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
         <h2 className={`${titleCls} font-extrabold tracking-tight leading-tight`}>{game.name}</h2>
         <div className="flex flex-wrap justify-end gap-2 shrink-0">
-          {scheduled && <span className="text-[14px] font-bold text-sky border border-sky/40 rounded-sm px-2.5 py-1">예약</span>}
-          {game.status === 'paused' && <span className="text-[14px] font-bold text-gold border border-gold/40 rounded-sm px-2.5 py-1">PAUSED</span>}
-          {!scheduled && closed && <span className="text-[14px] font-bold text-rose border border-rose/40 rounded-sm px-2.5 py-1">REG CLOSED</span>}
+          {scheduled && <span className={`${badgeCls} text-sky border-sky/40`}>예약</span>}
+          {game.status === 'paused' && <span className={`${badgeCls} text-gold border-gold/40`}>PAUSED</span>}
+          {!scheduled && closed && <span className={`${badgeCls} text-rose border-rose/40`}>REG CLOSED</span>}
         </div>
       </div>
 
@@ -167,21 +182,21 @@ function GameCard({ game, now }: { game: Game; now: number }) {
             </div>
             <div className={`${timerCls} leading-none font-black num tracking-tight mt-1`}>{fmtCountdown(pos.remainMs)}</div>
             <div className={`${blindCls} font-black num leading-tight mt-3`}>
-              {isBreak ? 'BREAK' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
+              <Blinds level={pos.level} />
             </div>
             {next && (
-              <div className={`mt-1 text-white/60 font-bold tracking-widest ${nextCls} num`}>
-                NEXT · {next.type === 'break' ? 'BREAK' : `${fmtNum(next.sb)}/${fmtNum(next.bb)} (${fmtNum(next.ante)})`}
+              <div className={`mt-1 text-white/60 font-bold tracking-widest @max-xs:tracking-normal @max-3xs:whitespace-normal ${nextCls} num`}>
+                NEXT · <Blinds level={next} />
               </div>
             )}
           </>
         )}
       </div>
 
-      <div className="mt-5 grid grid-cols-4 @max-lg:grid-cols-2 gap-2">
+      <div className="mt-5 @max-sm:mt-3 grid grid-cols-4 @max-lg:grid-cols-2 @max-2xs:grid-cols-1 gap-2 @max-sm:gap-1.5">
         {stats.map((s) => (
-          <div key={s.label} className="bg-white/5 rounded-xl px-3 py-2.5 min-w-0">
-            <div className="text-[clamp(11px,2cqw,13px)] font-bold tracking-[0.14em] text-white/55">{s.label}</div>
+          <div key={s.label} className="bg-white/5 rounded-xl px-3 py-2.5 @max-sm:px-2 @max-sm:py-1.5 @max-2xs:px-1.5 min-w-0">
+            <div className="text-[clamp(8px,2cqw,13px)] font-bold tracking-[0.14em] text-white/55 whitespace-nowrap @max-2xs:whitespace-normal @max-2xs:tracking-normal">{s.label}</div>
             <div className={`mt-0.5 ${statCls} font-extrabold num ${s.tone ?? ''}`}>{s.value}</div>
           </div>
         ))}
@@ -189,5 +204,6 @@ function GameCard({ game, now }: { game: Game; now: number }) {
 
       <div className="mt-4 text-right text-[15px] text-mint/80">전광판 열기 ›</div>
     </Link>
+    </div>
   )
 }
