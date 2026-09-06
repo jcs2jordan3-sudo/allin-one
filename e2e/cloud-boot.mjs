@@ -58,6 +58,11 @@ await step('/display/x → 공개 스코프 로드 실패 안내', async () => {
   await page.getByText('데이터를 불러오지 못했습니다').waitFor({ timeout: 20000 })
 })
 
+await step('/live → 공개 스코프 로드 실패 안내', async () => {
+  await page.goto(BASE + '/live', { waitUntil: 'networkidle' })
+  await page.getByText('데이터를 불러오지 못했습니다').waitFor({ timeout: 20000 })
+})
+
 await step('/reset → 재설정 메일 폼, /checkin → 미로그인 시 /join 리다이렉트', async () => {
   await page.goto(BASE + '/reset', { waitUntil: 'networkidle' })
   await page.getByText('비밀번호 재설정').first().waitFor({ timeout: 20000 })

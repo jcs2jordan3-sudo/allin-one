@@ -15,6 +15,7 @@ import GameDetail from './pages/GameDetail'
 
 // 공개·플레이어·인증 페이지는 필요할 때만 로드 (콘솔 번들 축소)
 const DisplayBoard = lazy(() => import('./pages/DisplayBoard'))
+const LiveBoard = lazy(() => import('./pages/LiveBoard'))
 const PublicRanking = lazy(() => import('./pages/PublicRanking'))
 const QrSheet = lazy(() => import('./pages/QrSheet'))
 const StaffLogin = lazy(() => import('./pages/StaffLogin'))
@@ -139,6 +140,7 @@ export default function App() {
       </Route>
       {/* 공개 페이지 */}
       <Route path="/display/:id" element={<PublicScope><DisplayBoard /></PublicScope>} />
+      <Route path="/live" element={<PublicScope><LiveBoard /></PublicScope>} />
       <Route path="/rank" element={<PublicScope><PublicRanking /></PublicScope>} />
       <Route path="/qr/:tableNo" element={<PublicScope><QrSheet /></PublicScope>} />
       {/* 플레이어(회원) 페이지 — 클라우드 모드 */}

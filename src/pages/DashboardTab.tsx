@@ -74,7 +74,16 @@ export default function DashboardTab() {
 
       {/* 진행 중인 게임 */}
       <section>
-        <SectionTitle>진행 중인 게임</SectionTitle>
+        <SectionTitle
+          right={
+            // 매장 전체 현황판 — 게임이 바뀌어도 주소가 같아 TV 고정 화면·카톡 고정 링크로 쓴다
+            <a href={appUrl(withStore('/live'))} target="_blank" rel="noreferrer">
+              <Btn sm>📡 매장 현황판</Btn>
+            </a>
+          }
+        >
+          진행 중인 게임
+        </SectionTitle>
         {running.length === 0 ? (
           <Empty>진행 중인 게임이 없습니다. 게임을 추가해보세요.</Empty>
         ) : (

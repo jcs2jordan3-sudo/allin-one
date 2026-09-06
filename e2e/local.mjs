@@ -116,6 +116,17 @@ await step('전광판 렌더 (로컬: 랭킹 QR)', async () => {
   await shot('display')
 })
 
+await step('매장 현황판(/live) — 진행 게임 카드 + 전광판 링크', async () => {
+  await page.goto(BASE + '/live', { waitUntil: 'networkidle' })
+  await page.getByText('실시간 현황').first().waitFor()
+  await page.getByText('데일리 게임').first().waitFor()
+  await page.getByText('PLAYERS').first().waitFor()
+  await page.getByText('전광판 열기').first().waitFor()
+  await shot('live')
+  await page.getByText('전광판 열기').first().click()
+  await page.waitForURL((u) => u.pathname.includes(`/display/${gameId}`))
+})
+
 await step('공개 랭킹', async () => {
   await page.goto(BASE + '/rank', { waitUntil: 'networkidle' })
   await page.getByText('랭킹').first().waitFor()

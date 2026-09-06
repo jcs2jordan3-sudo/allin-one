@@ -73,8 +73,10 @@ export interface NoticeInput {
   dealerNames: string[] // 딜러 직원 이름 (설정의 딜러 칸이 비었을 때)
   stats: NoticeStats
   settings: NoticeSettings
-  /** 진행 중 게임의 실시간 전광판 링크 (게임 id → URL) */
+  /** 진행 중 게임의 실시간 전광판 링크 (게임 id → URL) — storeLiveUrl이 없을 때만 게임별로 넣는다 */
   liveUrls?: Record<string, string>
+  /** 매장 전체 실시간 현황 링크(/live) — 게임이 바뀌어도 같은 주소라 게임별 링크 대신 한 번만 넣는다 */
+  storeLiveUrl?: string
 }
 
 const levelText = (label: string, type: string) => {
@@ -124,10 +126,11 @@ export function buildNotice(i: NoticeInput): string {
       const pos = levelAt(g.snapshot.levels, gameElapsedMs(g, i.now))
       const playing = g.entries.filter((e) => e.status === 'playing').length
       out.push(`🎮 ${levelText(pos.level.label, pos.level.type)}, ${playing}명 진행 중${g.status === 'paused' ? ' (일시정지)' : ''} ❕`)
-      const url = i.liveUrls?.[g.id]
+      const url = i.storeLiveUrl ? undefined : i.liveUrls?.[g.id]
       if (url) out.push(`📡 실시간 현황: ${url}`)
     }
   })
+  if (i.storeLiveUrl) out.push(`📡 실시간 현황: ${i.storeLiveUrl}`)
   out.push('=====================')
   for (const l of lines(i.settings.footer)) out.push(fill(l))
   return out.join('\n')

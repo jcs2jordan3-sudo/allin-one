@@ -39,9 +39,9 @@ export default function NoticeModal({ onClose }: { onClose: () => void }) {
   const dealerNames = useMemo(() => st.managers.filter((m) => m.role === 'dealer').map((m) => m.name), [st.managers])
   const generated = useMemo(() => {
     if (!stats) return ''
-    const liveUrls: Record<string, string> = {}
-    for (const g of st.games) if (g.status !== 'ended' && !g.cancelled) liveUrls[g.id] = absUrl(withStore(`/display/${g.id}`))
-    return buildNotice({ now: Date.now(), storeName: st.storeName, games: st.games, members: st.members, dealerNames, stats, settings: draft, liveUrls })
+    // 매장 전체 현황(/live)은 게임이 바뀌어도 주소가 같아 공지에 한 번만 넣는다
+    const storeLiveUrl = absUrl(withStore('/live'))
+    return buildNotice({ now: Date.now(), storeName: st.storeName, games: st.games, members: st.members, dealerNames, stats, settings: draft, storeLiveUrl })
   }, [stats, st.games, st.members, st.storeName, dealerNames, draft])
   useEffect(() => { if (!edited) setText(generated) }, [generated, edited])
 
