@@ -41,7 +41,6 @@ export default function LiveBoard() {
     else document.documentElement.requestFullscreen().catch(() => {})
   }
   const d = new Date(now)
-  const cols = live.length >= 3 ? 'xl:grid-cols-3' : live.length === 2 ? 'lg:grid-cols-2' : ''
 
   return (
     <div className="min-h-screen stage-bg text-ink flex flex-col p-6 gap-6">
@@ -66,9 +65,10 @@ export default function LiveBoard() {
           <div className="text-mut text-lg">게임이 시작되면 이 화면에 자동으로 나타납니다.</div>
         </div>
       ) : (
-        // TV(세로 여유)에서는 카드를 세로 중앙에, 게임이 하나면 타이머를 더 크게
-        <div className={`flex-1 grid grid-cols-1 ${cols} gap-5 content-center`}>
-          {live.map((g) => <GameCard key={g.id} game={g} now={now} big={live.length === 1} />)}
+        // 게임 수와 상관없이 카드를 한 줄에 나란히(폭 균등). 글자는 카드 폭 기준(cqw)으로 맞춰지므로 줄이 늘어나지 않는다.
+        // 폰(640px 미만)만 세로로 쌓는다. TV에서는 세로 중앙 정렬.
+        <div className="flex-1 grid grid-cols-1 sm:grid-flow-col sm:auto-cols-fr gap-5 content-center">
+          {live.map((g) => <GameCard key={g.id} game={g} now={now} />)}
         </div>
       )}
 
@@ -108,9 +108,17 @@ export default function LiveBoard() {
   )
 }
 
-function GameCard({ game, now, big }: { game: Game; now: number; big?: boolean }) {
-  const timerCls = big ? 'text-[clamp(56px,11vw,128px)]' : 'text-[clamp(44px,7vw,72px)]'
-  const blindCls = big ? 'text-[clamp(26px,4.5vw,56px)]' : 'text-[clamp(22px,3vw,34px)]'
+// 글자 크기는 화면이 아니라 카드 폭(cqw) 기준 — 한 줄에 카드가 몇 개든 카드 안에 맞게 줄어든다
+// 폭 계산: MM:SS 5자·H:MM:SS 7자 → 18cqw면 최대 78cqw, HH:MM:SS 8자 → 13cqw면 64cqw, 블라인드 21자 → 6cqw면 73cqw
+const timerCls = 'text-[clamp(40px,18cqw,150px)]'
+const clockCls = 'text-[clamp(32px,13cqw,120px)]'
+const blindCls = 'text-[clamp(14px,6cqw,48px)]'
+const labelCls = 'text-[clamp(14px,3cqw,22px)]'
+const nextCls = 'text-[clamp(10px,2.4cqw,18px)]'
+const titleCls = 'text-[clamp(18px,3.6cqw,30px)]'
+const statCls = 'text-[clamp(15px,3cqw,24px)]'
+
+function GameCard({ game, now }: { game: Game; now: number }) {
   const elapsed = gameElapsedMs(game, now)
   const pos = levelAt(game.snapshot.levels, elapsed)
   const next = nextLevel(game.snapshot.levels, pos.idx)
@@ -132,49 +140,49 @@ function GameCard({ game, now, big }: { game: Game; now: number; big?: boolean }
   return (
     <Link
       to={withStore(`/display/${game.id}`)}
-      className="block bg-black/40 border border-white/8 rounded-2xl backdrop-blur p-6 hover:border-mint/40 transition-colors"
+      className="@container block min-w-0 bg-black/40 border border-white/8 rounded-2xl backdrop-blur p-6 @max-sm:p-4 hover:border-mint/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-2xl font-extrabold tracking-tight leading-tight">{game.name}</h2>
-        <div className="flex gap-2 shrink-0">
+        <h2 className={`${titleCls} font-extrabold tracking-tight leading-tight`}>{game.name}</h2>
+        <div className="flex flex-wrap justify-end gap-2 shrink-0">
           {scheduled && <span className="text-[14px] font-bold text-sky border border-sky/40 rounded-sm px-2.5 py-1">예약</span>}
           {game.status === 'paused' && <span className="text-[14px] font-bold text-gold border border-gold/40 rounded-sm px-2.5 py-1">PAUSED</span>}
           {!scheduled && closed && <span className="text-[14px] font-bold text-rose border border-rose/40 rounded-sm px-2.5 py-1">REG CLOSED</span>}
         </div>
       </div>
 
-      <div className="mt-5 flex items-end justify-between gap-4 flex-wrap">
+      {/* 전광판과 같은 세로 구성(레벨 → 타이머 → 블라인드 → NEXT), 가운데 정렬. 한 줄씩이라 카드가 좁아도 넘치지 않는다 */}
+      <div className="mt-5 text-center whitespace-nowrap">
         {scheduled ? (
-          <div>
-            <div className="text-lg font-bold text-sky tracking-wide">시작까지</div>
-            <div className={`${timerCls} leading-none font-black num tracking-tight`}>{fmtClock(game.startedAt - now)}</div>
-          </div>
+          <>
+            <div className={`${labelCls} font-bold text-sky tracking-wide`}>시작까지</div>
+            <div className={`${clockCls} leading-none font-black num tracking-tight mt-1`}>{fmtClock(game.startedAt - now)}</div>
+            <div className={`${nextCls} mt-3 text-white/60 font-bold tracking-widest`}>사전 등록 접수 중</div>
+          </>
         ) : (
-          <div>
-            <div className="text-lg font-bold text-mint tracking-wide">
+          <>
+            <div className={`${labelCls} font-bold text-mint tracking-wide`}>
               {pos.level.label}
               {isBreak && <span className="text-gold ml-2">BREAK{pos.level.colorUp ? ` · 칩 제거 ${fmtNum(pos.level.colorUp)}` : ''}</span>}
             </div>
-            <div className={`${timerCls} leading-none font-black num tracking-tight`}>{fmtCountdown(pos.remainMs)}</div>
-          </div>
-        )}
-        <div className="text-right max-sm:text-left">
-          <div className={`${blindCls} font-black num leading-tight`}>
-            {scheduled ? '사전 등록 접수 중' : isBreak ? 'BREAK' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
-          </div>
-          {!scheduled && next && (
-            <div className="mt-1 text-white/60 font-bold tracking-widest text-[15px] num">
-              NEXT · {next.type === 'break' ? 'BREAK' : `${fmtNum(next.sb)}/${fmtNum(next.bb)} (${fmtNum(next.ante)})`}
+            <div className={`${timerCls} leading-none font-black num tracking-tight mt-1`}>{fmtCountdown(pos.remainMs)}</div>
+            <div className={`${blindCls} font-black num leading-tight mt-3`}>
+              {isBreak ? 'BREAK' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
             </div>
-          )}
-        </div>
+            {next && (
+              <div className={`mt-1 text-white/60 font-bold tracking-widest ${nextCls} num`}>
+                NEXT · {next.type === 'break' ? 'BREAK' : `${fmtNum(next.sb)}/${fmtNum(next.bb)} (${fmtNum(next.ante)})`}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      <div className="mt-5 grid grid-cols-4 max-sm:grid-cols-2 gap-2">
+      <div className="mt-5 grid grid-cols-4 @max-lg:grid-cols-2 gap-2">
         {stats.map((s) => (
-          <div key={s.label} className="bg-white/5 rounded-xl px-3 py-2.5">
-            <div className="text-[13px] font-bold tracking-[0.14em] text-white/55">{s.label}</div>
-            <div className={`mt-0.5 text-xl font-extrabold num ${s.tone ?? ''}`}>{s.value}</div>
+          <div key={s.label} className="bg-white/5 rounded-xl px-3 py-2.5 min-w-0">
+            <div className="text-[clamp(11px,2cqw,13px)] font-bold tracking-[0.14em] text-white/55">{s.label}</div>
+            <div className={`mt-0.5 ${statCls} font-extrabold num ${s.tone ?? ''}`}>{s.value}</div>
           </div>
         ))}
       </div>
