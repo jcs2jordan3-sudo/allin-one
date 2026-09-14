@@ -113,6 +113,20 @@ export interface BuyinEvent {
   earlyBirdChips?: number
 }
 
+export type SeatMoveReason = 'manual' | 'break'
+
+export interface SeatMove {
+  id: string
+  ts: number
+  memberId: string
+  fromTable: number
+  fromSeat: number
+  toTable: number
+  toSeat: number
+  reason: SeatMoveReason
+  operator: string
+}
+
 export type GameStatus = 'running' | 'paused' | 'ended'
 
 export interface Game {
@@ -136,6 +150,7 @@ export interface Game {
   addonChips?: number // 누적 애드온 칩
   addonCount?: number
   joinCode?: string // 전광판 QR 코드(셀프 바인 URL) — 게임 id 대신 노출되는 불투명 코드
+  seatMoves?: SeatMove[] // 좌석 이동 이력(수동 밸런싱·테이블 해체), 오래된 순
 }
 
 export interface LedgerEntry {

@@ -244,6 +244,42 @@ await test('탈락 → 순위 기록 → 리엔트리로 복귀', async () => {
   assert.equal(e2.status, 'playing')
   assert.equal(e2.rank, null)
 })
+await test('좌석 이동(수동 밸런싱) → 빈 좌석으로만, 이력 기록, 사용 중·범위 밖·다른 테이블 거부', async () => {
+  const before = await one('select * from game_entries where game_id = $1 and member_id = $2', [gameId, m1])
+  assert.equal(before.table_no, 1)
+  assert.equal(before.seat, 1)
+  await q('select move_seat($1, $2, 2, 3)', [gameId, m1])
+  const after = await one('select * from game_entries where game_id = $1 and member_id = $2', [gameId, m1])
+  assert.equal(after.table_no, 2)
+  assert.equal(after.seat, 3)
+  const mv = await one('select * from seat_moves where game_id = $1 order by created_at desc limit 1', [gameId])
+  assert.equal(mv.member_id, m1)
+  assert.deepEqual([mv.from_table, mv.from_seat, mv.to_table, mv.to_seat, mv.reason, mv.operator], [1, 1, 2, 3, 'manual', '대표'])
+  await q('select move_seat($1, $2, 2, 3)', [gameId, m1]) // 같은 자리 → no-op, 이력 없음
+  assert.equal((await q('select 1 from seat_moves where game_id = $1', [gameId])).length, 1)
+  await fails(() => q('select move_seat($1, $2, 2, 3)', [gameId, p1.id]), /이미 사용 중/)
+  await fails(() => q('select move_seat($1, $2, 3, 1)', [gameId, m1]), /쓰지 않는 테이블/)
+  await fails(() => q('select move_seat($1, $2, 2, 0)', [gameId, m1]), /좌석 번호/)
+  await fails(() => q('select move_seat($1, $2, 2, 10)', [gameId, m1]), /좌석 번호/)
+  await fails(() => q("select move_seat($1, $2, 2, 4, 'break')", [gameId, '00000000-0000-0000-0000-000000000001']), /참여 중인 플레이어가 아닙니다/)
+})
+await test('좌석 유니크 인덱스: 직접 update로도 사용 중인 좌석에 겹칠 수 없음', async () => {
+  await q('set role authenticated')
+  const r = await db.query('update game_entries set table_no = 2, seat = 3 where game_id = $1 and member_id = $2', [gameId, p1.id]).catch((e) => e)
+  await q('reset role')
+  assert.match(String(r.message), /game_entries_seat_unique|duplicate key/)
+})
+await test('테이블 해체: 플레이어 남아 있으면 거부, 비면 목록에서 제거, 마지막 테이블은 불가', async () => {
+  await fails(() => q('select remove_game_table($1, 2)', [gameId]), /2명이 플레이 중/)
+  await fails(() => q('select remove_game_table($1, 3)', [gameId]), /쓰지 않는 테이블/)
+  await q('select remove_game_table($1, 1)', [gameId]) // m1이 옮겨가서 비어 있음
+  assert.deepEqual((await one('select tables from games where id = $1', [gameId])).tables, [2])
+  await fails(() => q('select remove_game_table($1, 2)', [gameId]), /마지막 테이블/)
+  await fails(() => q('select move_seat($1, $2, 1, 1)', [gameId, m1]), /쓰지 않는 테이블/)
+  // 해체된 TABLE 1은 다른 게임이 바로 쓸 수 있다
+  const g4 = (await one("select create_game('해체 뒤', $1, array[1]) as id", [gsId])).id
+  await q('select cancel_game($1)', [g4])
+})
 await test('레지 마감 레벨 이동 → 바인 거부, 되돌리면 허용', async () => {
   await q(`select adjust_level($1, 5)`, [gameId])
   await fails(() => q(`select game_buyin($1, $2, 'RE_BUYIN', 'P')`, [gameId, m1]), /마감/)

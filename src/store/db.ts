@@ -20,7 +20,7 @@ type Row = Record<string, unknown>
 
 const ALL_STAFF_GROUPS: Group[] = ['store', 'members', 'ledger', 'gameSets', 'games', 'staff', 'events', 'passes', 'seasons', 'waitlist', 'audit']
 const PUBLIC_GROUPS: Group[] = ['store', 'games', 'events', 'ranking']
-const GAME_SELECT = '*, game_entries(*), buyin_events(*)'
+const GAME_SELECT = '*, game_entries(*), buyin_events(*), seat_moves(*)'
 const OFFLINE_MSG = '오프라인 상태입니다. 네트워크 연결 후 다시 시도하세요.'
 const iso = (ms: number) => new Date(ms).toISOString()
 
@@ -293,8 +293,9 @@ export function createDbStore(sb: SupabaseClient) {
           p_game: gameId, p_member: memberId, p_type: type, p_currency: currency, p_request: crypto.randomUUID(),
         }), 'games', 'members', 'ledger', 'waitlist'),
       eliminate: (gameId, memberId) => run(() => rpc('eliminate_entry', { p_game: gameId, p_member: memberId }), 'games'),
-      moveSeat: (gameId, memberId, table, seat) =>
-        run(() => sb.from('game_entries').update({ table_no: table, seat }).eq('game_id', gameId).eq('member_id', memberId), 'games'),
+      moveSeat: (gameId, memberId, table, seat, reason) =>
+        run(() => rpc('move_seat', { p_game: gameId, p_member: memberId, p_table: table, p_seat: seat, p_reason: reason ?? 'manual' }), 'games'),
+      removeGameTable: (gameId, table) => run(() => rpc('remove_game_table', { p_game: gameId, p_table: table }), 'games', 'audit'),
       endGame: (gameId, ranking) => run(() => rpc('end_game', { p_game: gameId, p_ranking: ranking ?? null }), 'games', 'members', 'ledger', 'audit'),
 
       async resetData(mode) {
@@ -358,6 +359,7 @@ export function createDbStore(sb: SupabaseClient) {
     on('games', byStore, () => refreshSoon('games'))
     on('game_entries', undefined, () => refreshSoon('games'))
     on('buyin_events', undefined, () => refreshSoon('games'))
+    on('seat_moves', undefined, () => refreshSoon('games'))
     on('events', byStore, () => refreshSoon('events'))
     if (kind === 'staff') {
       on('members', byStore, () => refreshSoon('members'))

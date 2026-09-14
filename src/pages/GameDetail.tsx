@@ -257,6 +257,7 @@ function SeatMoveModal({ game, memberId, onClose }: { game: Game; memberId: stri
   const entry = game.entries.find((e) => e.memberId === memberId)
   const [table, setTable] = useState(entry?.table ?? game.tables[0])
   const [seat, setSeat] = useState(entry?.seat ?? 1)
+  const [error, setError] = useState<string | null>(null)
 
   const m = members.find((x) => x.id === memberId)
   const seatCount = tables.find((t) => t.no === table)?.seats ?? 9
@@ -266,9 +267,10 @@ function SeatMoveModal({ game, memberId, onClose }: { game: Game; memberId: stri
       .map((e) => e.seat),
   )
 
-  const submit = () => {
-    moveSeat(game.id, memberId, table, seat)
-    onClose()
+  const submit = async () => {
+    const err = await moveSeat(game.id, memberId, table, seat)
+    if (err) setError(err)
+    else onClose()
   }
 
   return (
@@ -294,6 +296,7 @@ function SeatMoveModal({ game, memberId, onClose }: { game: Game; memberId: stri
           </Select>
         </Field>
       </div>
+      {error && <p className="mt-3 text-sm text-rose">⚠ {error}</p>}
       <div className="flex justify-end gap-2 mt-5">
         <Btn variant="ghost" onClick={onClose}>취소</Btn>
         <Btn variant="primary" onClick={submit} disabled={occupied.has(seat)}>이동</Btn>

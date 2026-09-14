@@ -2,7 +2,7 @@
 
 import type {
   AuditEntry, BuyinEvent, Currency, Entry, EventPost, Game, GameSet, LedgerEntry, Manager, Member, Pass, PassLogEntry,
-  PassType, RpLogEntry, Season, StaffRole, WaitEntry,
+  PassType, RpLogEntry, SeatMove, Season, StaffRole, WaitEntry,
 } from '../types'
 
 type Row = Record<string, unknown>
@@ -117,9 +117,24 @@ function rowToBuyin(r: Row): BuyinEvent {
   }
 }
 
+function rowToSeatMove(r: Row): SeatMove {
+  return {
+    id: String(r.id),
+    ts: ms(r.created_at) ?? 0,
+    memberId: String(r.member_id),
+    fromTable: num(r.from_table),
+    fromSeat: num(r.from_seat),
+    toTable: num(r.to_table),
+    toSeat: num(r.to_seat),
+    reason: r.reason === 'break' ? 'break' : 'manual',
+    operator: str(r.operator) ?? '',
+  }
+}
+
 export function rowToGame(r: Row): Game {
   const entries = ((r.game_entries as Row[] | undefined) ?? []).map(rowToEntry)
   const buyins = ((r.buyin_events as Row[] | undefined) ?? []).map(rowToBuyin).sort((a, b) => a.ts - b.ts)
+  const seatMoves = ((r.seat_moves as Row[] | undefined) ?? []).map(rowToSeatMove).sort((a, b) => a.ts - b.ts)
   return {
     id: String(r.id),
     name: String(r.name),
@@ -141,6 +156,7 @@ export function rowToGame(r: Row): Game {
     addonChips: num(r.addon_chips) || undefined,
     addonCount: num(r.addon_count) || undefined,
     joinCode: str(r.join_code),
+    seatMoves: seatMoves.length ? seatMoves : undefined,
   }
 }
 

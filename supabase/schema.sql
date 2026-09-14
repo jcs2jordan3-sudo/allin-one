@@ -146,6 +146,26 @@ create table if not exists public.buyin_events (
   ledger_id uuid references public.ledger(id)
 );
 
+-- 같은 게임·테이블·좌석에 플레이 중인 사람은 한 명만 (동시 이동 충돌 방지)
+create unique index if not exists game_entries_seat_unique
+  on public.game_entries (game_id, table_no, seat) where status = 'playing';
+
+-- 좌석 이동 이력 — 밸런싱·테이블 해체는 관리자가 수동으로 옮기고, 누가 언제 어디로 옮겼는지 남긴다
+create table if not exists public.seat_moves (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  game_id uuid not null references public.games(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete cascade,
+  from_table int not null,
+  from_seat int not null,
+  to_table int not null,
+  to_seat int not null,
+  reason text not null default 'manual' check (reason in ('manual', 'break')),
+  operator text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists seat_moves_game on public.seat_moves (game_id, created_at desc);
+
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(id) on delete cascade,
@@ -760,6 +780,49 @@ begin
   select count(*) into v_playing from public.game_entries where game_id = g.id and status = 'playing';
   update public.game_entries set status = 'eliminated', rank = v_playing, out_at = now()
    where game_id = g.id and member_id = p_member and status = 'playing';
+end $$;
+
+-- 좌석 이동(수동 밸런싱). 빈 좌석으로만, 게임이 쓰는 테이블 안에서만. 이력은 seat_moves에.
+create or replace function public.move_seat(
+  p_game uuid, p_member uuid, p_table int, p_seat int, p_reason text default 'manual'
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; g public.games; e public.game_entries; v_seats int; v_taken uuid;
+begin
+  s := public._require_staff();
+  select * into g from public.games where id = p_game and store_id = s.store_id for update;
+  if g.id is null then raise exception '게임을 찾을 수 없습니다.'; end if;
+  if g.status = 'ended' then raise exception '종료된 게임입니다.'; end if;
+  if not (p_table = any (g.tables)) then raise exception 'TABLE %은(는) 이 게임에서 쓰지 않는 테이블입니다.', p_table; end if;
+  v_seats := nullif(public._seat_count(g.store_id, p_table), 0);
+  v_seats := coalesce(v_seats, 9);
+  if p_seat is null or p_seat < 1 or p_seat > v_seats then raise exception '좌석 번호가 올바르지 않습니다. (1~%)', v_seats; end if;
+  select * into e from public.game_entries where game_id = g.id and member_id = p_member for update;
+  if e.member_id is null or e.status <> 'playing' then raise exception '참여 중인 플레이어가 아닙니다.'; end if;
+  if e.table_no = p_table and e.seat = p_seat then return; end if;
+  select member_id into v_taken from public.game_entries
+   where game_id = g.id and table_no = p_table and seat = p_seat and status = 'playing';
+  if v_taken is not null then raise exception 'TABLE % - %번 좌석은 이미 사용 중입니다.', p_table, p_seat; end if;
+  if p_reason not in ('manual', 'break') then p_reason := 'manual'; end if;
+  update public.game_entries set table_no = p_table, seat = p_seat where game_id = g.id and member_id = p_member;
+  insert into public.seat_moves (store_id, game_id, member_id, from_table, from_seat, to_table, to_seat, reason, operator)
+  values (g.store_id, g.id, p_member, e.table_no, e.seat, p_table, p_seat, p_reason, s.name);
+end $$;
+
+-- 테이블 해체: 그 테이블에 플레이 중인 사람이 없을 때 게임의 테이블 목록에서 뺀다
+create or replace function public.remove_game_table(p_game uuid, p_table int) returns void
+language plpgsql security definer set search_path = public as $$
+declare s public.staff; g public.games; v_left int;
+begin
+  s := public._require_staff();
+  select * into g from public.games where id = p_game and store_id = s.store_id for update;
+  if g.id is null then raise exception '게임을 찾을 수 없습니다.'; end if;
+  if g.status = 'ended' then raise exception '종료된 게임입니다.'; end if;
+  if not (p_table = any (g.tables)) then raise exception 'TABLE %은(는) 이 게임에서 쓰지 않는 테이블입니다.', p_table; end if;
+  if array_length(g.tables, 1) <= 1 then raise exception '마지막 테이블은 해체할 수 없습니다.'; end if;
+  select count(*) into v_left from public.game_entries where game_id = g.id and table_no = p_table and status = 'playing';
+  if v_left > 0 then raise exception 'TABLE %에 아직 %명이 플레이 중입니다. 먼저 다른 테이블로 옮겨주세요.', p_table, v_left; end if;
+  update public.games set tables = array_remove(tables, p_table) where id = g.id;
 end $$;
 
 -- 바인 코어: 직원 등록·셀프 바인·데모 시드가 공용
@@ -1512,6 +1575,7 @@ alter table public.game_sets enable row level security;
 alter table public.games enable row level security;
 alter table public.game_entries enable row level security;
 alter table public.buyin_events enable row level security;
+alter table public.seat_moves enable row level security;
 alter table public.events enable row level security;
 
 drop policy if exists stores_select on public.stores;
@@ -1575,6 +1639,9 @@ create policy game_entries_update on public.game_entries for update
 
 drop policy if exists buyin_events_select on public.buyin_events;
 create policy buyin_events_select on public.buyin_events for select using (true);
+
+drop policy if exists seat_moves_select on public.seat_moves;
+create policy seat_moves_select on public.seat_moves for select using (store_id = public.staff_store_id());
 
 drop policy if exists events_select on public.events;
 create policy events_select on public.events for select using (true);
@@ -1737,6 +1804,7 @@ alter table public.game_sets replica identity full;
 alter table public.games replica identity full;
 alter table public.game_entries replica identity full;
 alter table public.buyin_events replica identity full;
+alter table public.seat_moves replica identity full;
 alter table public.events replica identity full;
 alter table public.wallets replica identity full;
 alter table public.pass_types replica identity full;
@@ -1748,7 +1816,7 @@ do $$
 declare t text;
 begin
   foreach t in array array['stores', 'console_state', 'staff', 'members', 'wallets', 'ledger',
-                           'game_sets', 'games', 'game_entries', 'buyin_events', 'events',
+                           'game_sets', 'games', 'game_entries', 'buyin_events', 'seat_moves', 'events',
                            'pass_types', 'passes', 'pass_log', 'seasons', 'rp_log', 'waitlist', 'audit_log'] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);

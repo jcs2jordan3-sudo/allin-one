@@ -13,6 +13,7 @@ import GameSetEditor from '../components/GameSetEditor'
 import EndGameModal from '../components/EndGameModal'
 import GameEditModal from '../components/GameEditModal'
 import WaitlistModal from '../components/WaitlistModal'
+import BalancingModal from '../components/BalancingModal'
 import DateRangePicker from '../components/DateRangePicker'
 import NoticeModal from '../components/NoticeModal'
 import { absUrl, appUrl } from '../lib/url'
@@ -300,72 +301,6 @@ function GameQrModal({ game: g, onClose }: { game: Game; onClose: () => void }) 
           <Btn sm onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>링크 복사</Btn>
           <Btn sm onClick={() => window.print()}>인쇄</Btn>
         </div>
-      </div>
-    </Modal>
-  )
-}
-
-// ── 밸런싱 모달 ───────────────────────────────────────────────────────────
-
-function BalancingModal({ game: g, open, onClose }: { game: Game; open: boolean; onClose: () => void }) {
-  const members = useStore((s) => s.members)
-  const tables = useStore((s) => s.tables)
-  const moveSeat = useStore((s) => s.moveSeat)
-
-  const byTable = useMemo(() => {
-    const map = new Map<number, { memberId: string; seat: number }[]>()
-    for (const t of g.tables) map.set(t, [])
-    for (const e of g.entries) {
-      if (e.status === 'playing') map.get(e.table)?.push({ memberId: e.memberId, seat: e.seat })
-    }
-    return map
-  }, [g])
-
-  const suggestion = useMemo(() => {
-    const arr = [...byTable.entries()].map(([t, list]) => ({ t, n: list.length }))
-    if (arr.length < 2) return null
-    arr.sort((a, b) => b.n - a.n)
-    const max = arr[0]
-    const min = arr[arr.length - 1]
-    if (max.n - min.n <= 1) return null
-    const mover = byTable.get(max.t)?.[0]
-    if (!mover) return null
-    const tinfo = tables.find((x) => x.no === min.t)
-    const used = new Set(byTable.get(min.t)?.map((x) => x.seat))
-    let seat = 1
-    while (used.has(seat) && seat <= (tinfo?.seats ?? 9)) seat++
-    return { memberId: mover.memberId, from: max.t, to: min.t, seat }
-  }, [byTable, tables])
-
-  const name = (id: string) => members.find((m) => m.id === id)?.nickname ?? '?'
-
-  return (
-    <Modal open={open} onClose={onClose} title="테이블 밸런싱">
-      <div className="space-y-3">
-        {[...byTable.entries()].map(([t, list]) => (
-          <div key={t} className="flex items-center gap-3 text-sm">
-            <span className="w-20 font-bold num">TABLE {t}</span>
-            <div className="flex-1 h-2 bg-surface2 rounded-sm overflow-hidden">
-              <div className="h-full bg-mint/70 rounded-sm" style={{ width: `${Math.min(100, list.length * 12)}%` }} />
-            </div>
-            <span className="text-mut num w-10 text-right">{list.length}명</span>
-          </div>
-        ))}
-        {suggestion ? (
-          <div className="mt-4 p-4 bg-surface2/70 border border-gold/30 rounded-xl text-sm">
-            <div className="text-gold font-semibold mb-1">이동 추천</div>
-            <p className="text-mut">
-              <b className="text-ink">{name(suggestion.memberId)}</b> — TABLE {suggestion.from} → TABLE {suggestion.to} ({suggestion.seat}번 좌석)
-            </p>
-            <div className="mt-3 text-right">
-              <Btn sm variant="primary" onClick={() => moveSeat(g.id, suggestion.memberId, suggestion.to, suggestion.seat)}>
-                적용
-              </Btn>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-4 text-sm text-mint">✓ 테이블 인원이 균형 상태입니다.</div>
-        )}
       </div>
     </Modal>
   )

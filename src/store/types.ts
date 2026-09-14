@@ -1,6 +1,6 @@
 import type {
   AuditEntry, BuyinType, Currency, DateRange, EventPost, Game, GameSet, LedgerEntry, Manager, Member, NoticeSettings, Pass,
-  PassLogEntry, PassType, PrizeRule, RpLogEntry, Season, StaffRole, TableInfo, WaitEntry, WaitStatus,
+  PassLogEntry, PassType, PrizeRule, RpLogEntry, SeatMoveReason, Season, StaffRole, TableInfo, WaitEntry, WaitStatus,
 } from '../types'
 
 /** 콘솔이 보는 상태 — 로컬 모드/클라우드 모드 모두 동일한 모양 */
@@ -62,7 +62,8 @@ export interface Actions {
   adjustChips: (id: string, kind: 'correction' | 'addon', chips: number) => Result
   joinGame: (gameId: string, memberId: string, type: BuyinType, currency: Currency) => Result
   eliminate: (gameId: string, memberId: string) => Result
-  moveSeat: (gameId: string, memberId: string, table: number, seat: number) => Result
+  moveSeat: (gameId: string, memberId: string, table: number, seat: number, reason?: SeatMoveReason) => Result
+  removeGameTable: (gameId: string, table: number) => Result
   endGame: (gameId: string, ranking?: string[]) => Result
   // 관리
   resetData: (mode: 'empty' | 'demo') => Result

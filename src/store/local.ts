@@ -348,12 +348,48 @@ function coreActions(set: SetState, get: GetState): Omit<Actions, LocalOnlyKey> 
       return null
     },
 
-    async moveSeat(gameId, memberId, table, seat) {
+    async moveSeat(gameId, memberId, table, seat, reason) {
+      const st = get()
+      const g = st.games.find((x) => x.id === gameId)
+      if (!g) return '게임을 찾을 수 없습니다.'
+      if (g.status === 'ended') return '종료된 게임입니다.'
+      if (!g.tables.includes(table)) return `TABLE ${table}은(는) 이 게임에서 쓰지 않는 테이블입니다.`
+      const seats = st.tables.find((t) => t.no === table)?.seats ?? 9
+      if (!Number.isInteger(seat) || seat < 1 || seat > seats) return `좌석 번호가 올바르지 않습니다. (1~${seats})`
+      const e = g.entries.find((x) => x.memberId === memberId)
+      if (!e || e.status !== 'playing') return '참여 중인 플레이어가 아닙니다.'
+      if (e.table === table && e.seat === seat) return null
+      if (g.entries.some((x) => x.status === 'playing' && x.table === table && x.seat === seat)) {
+        return `TABLE ${table} - ${seat}번 좌석은 이미 사용 중입니다.`
+      }
+      const move = {
+        id: uid(), ts: Date.now(), memberId, fromTable: e.table, fromSeat: e.seat, toTable: table, toSeat: seat,
+        reason: reason ?? 'manual', operator: st.operatorName,
+      }
       set({
-        games: get().games.map((g) =>
-          g.id === gameId ? { ...g, entries: g.entries.map((e) => (e.memberId === memberId ? { ...e, table, seat } : e)) } : g,
+        games: st.games.map((x) =>
+          x.id === gameId
+            ? {
+                ...x,
+                entries: x.entries.map((y) => (y.memberId === memberId ? { ...y, table, seat } : y)),
+                seatMoves: [...(x.seatMoves ?? []), move],
+              }
+            : x,
         ),
       })
+      return null
+    },
+
+    async removeGameTable(gameId, table) {
+      const st = get()
+      const g = st.games.find((x) => x.id === gameId)
+      if (!g) return '게임을 찾을 수 없습니다.'
+      if (g.status === 'ended') return '종료된 게임입니다.'
+      if (!g.tables.includes(table)) return `TABLE ${table}은(는) 이 게임에서 쓰지 않는 테이블입니다.`
+      if (g.tables.length <= 1) return '마지막 테이블은 해체할 수 없습니다.'
+      const left = g.entries.filter((e) => e.status === 'playing' && e.table === table).length
+      if (left > 0) return `TABLE ${table}에 아직 ${left}명이 플레이 중입니다. 먼저 다른 테이블로 옮겨주세요.`
+      set({ games: st.games.map((x) => (x.id === gameId ? { ...x, tables: x.tables.filter((t) => t !== table) } : x)) })
       return null
     },
 
