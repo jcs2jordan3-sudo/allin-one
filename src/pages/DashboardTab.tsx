@@ -258,11 +258,11 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
 
       {/* 3행: 액션 — 한 줄, 좁으면 자연스럽게 다음 줄로 */}
       <div className="mt-4 pt-4 border-t border-line flex flex-wrap items-center gap-2">
-        <Btn sm onClick={() => setBalanceOpen(true)}>밸런싱</Btn>
         <Btn sm onClick={() => setJoinOpen(true)}>참가 등록</Btn>
         <Link to={`/game/${g.id}`}><Btn sm>게임 관리</Btn></Link>
         <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
         {hasSupabase && g.joinCode && <Btn sm onClick={() => setQrOpen(true)}>바인 QR</Btn>}
+        <Btn sm onClick={() => setBalanceOpen(true)}>밸런싱</Btn>
         <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
         <span className="flex-1" />
         <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
