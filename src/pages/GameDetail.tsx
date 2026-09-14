@@ -10,7 +10,7 @@ import Avatar from '../components/Avatar'
 import JoinModal from '../components/JoinModal'
 import EndGameModal from '../components/EndGameModal'
 import GameEditModal from '../components/GameEditModal'
-import { Field, Select } from '../components/ui'
+import BalancingModal from '../components/BalancingModal'
 import { appUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
 
@@ -197,7 +197,7 @@ function PlayerList({ game }: { game: Game }) {
   const members = useStore((s) => s.members)
   const eliminate = useStore((s) => s.eliminate)
   const [page, setPage] = useState(1)
-  const [moveTarget, setMoveTarget] = useState<string | null>(null)
+  const [seatMap, setSeatMap] = useState<{ memberId: string | null } | null>(null)
   const PAGE = 8
 
   const sorted = useMemo(
@@ -214,6 +214,11 @@ function PlayerList({ game }: { game: Game }) {
   if (sorted.length === 0) return <Empty>참가자가 없습니다.</Empty>
   return (
     <div>
+      {game.status !== 'ended' && (
+        <div className="mb-3 flex justify-end">
+          <Btn sm onClick={() => setSeatMap({ memberId: null })}>좌석 배치도</Btn>
+        </div>
+      )}
       <div className="space-y-2">
         {rows.map((e) => {
           const m = members.find((x) => x.id === e.memberId)
@@ -229,7 +234,7 @@ function PlayerList({ game }: { game: Game }) {
                     <Badge tone="mint">참여 중</Badge>
                     {game.status !== 'ended' && (
                       <>
-                        <Btn sm onClick={() => setMoveTarget(e.memberId)}>좌석 이동</Btn>
+                        <Btn sm onClick={() => setSeatMap({ memberId: e.memberId })}>좌석 이동</Btn>
                         <Btn sm variant="danger" onClick={() => eliminate(game.id, e.memberId)}>탈락</Btn>
                       </>
                     )}
@@ -243,65 +248,8 @@ function PlayerList({ game }: { game: Game }) {
         })}
       </div>
       <Pager page={page} pages={pages} onPage={setPage} />
-      {moveTarget && <SeatMoveModal game={game} memberId={moveTarget} onClose={() => setMoveTarget(null)} />}
+      {seatMap && <BalancingModal game={game} open initialMemberId={seatMap.memberId} onClose={() => setSeatMap(null)} />}
     </div>
-  )
-}
-
-// ── 좌석 이동 모달 ────────────────────────────────────────────────────────
-
-function SeatMoveModal({ game, memberId, onClose }: { game: Game; memberId: string; onClose: () => void }) {
-  const members = useStore((s) => s.members)
-  const tables = useStore((s) => s.tables)
-  const moveSeat = useStore((s) => s.moveSeat)
-  const entry = game.entries.find((e) => e.memberId === memberId)
-  const [table, setTable] = useState(entry?.table ?? game.tables[0])
-  const [seat, setSeat] = useState(entry?.seat ?? 1)
-  const [error, setError] = useState<string | null>(null)
-
-  const m = members.find((x) => x.id === memberId)
-  const seatCount = tables.find((t) => t.no === table)?.seats ?? 9
-  const occupied = new Set(
-    game.entries
-      .filter((e) => e.status === 'playing' && e.table === table && e.memberId !== memberId)
-      .map((e) => e.seat),
-  )
-
-  const submit = async () => {
-    const err = await moveSeat(game.id, memberId, table, seat)
-    if (err) setError(err)
-    else onClose()
-  }
-
-  return (
-    <Modal open onClose={onClose} title="좌석 이동">
-      <p className="text-sm text-mut mb-4">
-        <b className="text-ink">{m?.nickname}</b> — 현재 TABLE {entry?.table} · {entry?.seat}번
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="테이블">
-          <Select value={table} onChange={(e) => { setTable(+e.target.value); setSeat(1) }}>
-            {game.tables.map((t) => (
-              <option key={t} value={t}>TABLE {t}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="좌석">
-          <Select value={seat} onChange={(e) => setSeat(+e.target.value)}>
-            {Array.from({ length: seatCount }, (_, i) => i + 1).map((s) => (
-              <option key={s} value={s} disabled={occupied.has(s)}>
-                {s}번{occupied.has(s) ? ' (사용 중)' : ''}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-      {error && <p className="mt-3 text-sm text-rose">⚠ {error}</p>}
-      <div className="flex justify-end gap-2 mt-5">
-        <Btn variant="ghost" onClick={onClose}>취소</Btn>
-        <Btn variant="primary" onClick={submit} disabled={occupied.has(seat)}>이동</Btn>
-      </div>
-    </Modal>
   )
 }
 

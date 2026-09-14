@@ -18,12 +18,13 @@ const shot = (name) => page.screenshot({ path: `${OUT}${String(++n).padStart(2, 
 const step = async (name, fn) => { await fn(); console.log(`  ✓ ${name}`) }
 const dlg = page.getByRole('dialog')
 
-await step('대시보드 로드 (로컬 모드) → 데일리 게임 밸런싱 열기', async () => {
+await step('대시보드 로드 (로컬 모드) → 게임 관리 → 좌석 배치도 열기', async () => {
   await page.goto(BASE + '/', { waitUntil: 'networkidle' })
   await page.getByText('진행 중인 게임').first().waitFor()
   assert.ok(await page.getByText('로컬 모드').first().isVisible())
-  const card = page.getByRole('heading', { name: '데일리 게임' }).locator('xpath=ancestor::*[.//button[contains(., "밸런싱")]][1]')
-  await card.getByRole('button', { name: '밸런싱' }).click()
+  await page.getByRole('heading', { name: '데일리 게임' }).locator('xpath=ancestor::*[.//a[contains(., "게임 관리")]][1]').getByRole('link', { name: '게임 관리' }).click()
+  await page.getByRole('button', { name: '좌석 배치도' }).waitFor()
+  await page.getByRole('button', { name: '좌석 배치도' }).click()
   await dlg.waitFor()
   await dlg.getByText('테이블 밸런싱').waitFor()
   assert.ok(await dlg.getByText(/TABLE 2\(3명\)이 TABLE .*보다 3명 많습니다/).isVisible())
@@ -80,23 +81,25 @@ await step('플레이어 있는 TABLE 1 해체 → 무작위 배정 → 이력�
 
 await step('마지막 테이블은 해체 버튼 없음, 새로고침 후 이력 유지(localStorage)', async () => {
   assert.equal(await dlg.getByRole('button', { name: '테이블 해체' }).count(), 0)
-  await page.reload({ waitUntil: 'networkidle' })
-  const card = page.getByRole('heading', { name: '데일리 게임' }).locator('xpath=ancestor::*[.//button[contains(., "밸런싱")]][1]')
-  await card.getByRole('button', { name: '밸런싱' }).click()
+  await page.reload({ waitUntil: 'networkidle' }) // 게임 관리 페이지 유지
+  await page.getByRole('button', { name: '좌석 배치도' }).click()
   await dlg.waitFor()
   await dlg.getByRole('button', { name: /이동 이력 2건/ }).waitFor()
+  await page.goto(BASE + '/', { waitUntil: 'networkidle' })
   assert.ok(await page.getByText('📍 TABLE 2').first().isVisible())
 })
 
-await step('게임 상세 좌석 이동 모달: 사용 중 좌석 disabled, 이동 성공', async () => {
+await step('플레이어 리스트 "좌석 이동" → 그 사람이 선택된 배치도 → 빈 좌석 탭으로 이동', async () => {
   await page.keyboard.press('Escape')
   await page.goto(BASE + '/game/' + (await page.evaluate(() => JSON.parse(localStorage.getItem('allinone-store-v1')).state.games.find((g) => g.name === '데일리 게임').id)), { waitUntil: 'networkidle' })
+  const row = page.getByRole('button', { name: '좌석 이동' }).first().locator('xpath=ancestor::*[contains(@class, "px-4")][1]')
+  const who = (await row.locator('span.font-semibold').first().textContent()).trim()
   await page.getByRole('button', { name: '좌석 이동' }).first().click()
   await dlg.waitFor()
-  const opts = await dlg.locator('select').last().locator('option[disabled]').count()
-  assert.ok(opts >= 2, `disabled options: ${opts}`)
-  await dlg.locator('select').last().selectOption('9')
-  await dlg.getByRole('button', { name: '이동', exact: true }).click()
+  await dlg.getByText(new RegExp(`${who}.*선택 중`)).waitFor()
+  await dlg.getByRole('button', { name: 'TABLE 2 9번 빈 좌석' }).click()
+  await dlg.getByRole('button', { name: `TABLE 2 9번 ${who}` }).waitFor()
+  await page.keyboard.press('Escape')
   await dlg.waitFor({ state: 'detached' })
   assert.ok(await page.getByText('TABLE 2 - 9').first().isVisible())
   await shot('detail-moved')

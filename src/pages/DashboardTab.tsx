@@ -13,7 +13,6 @@ import GameSetEditor from '../components/GameSetEditor'
 import EndGameModal from '../components/EndGameModal'
 import GameEditModal from '../components/GameEditModal'
 import WaitlistModal from '../components/WaitlistModal'
-import BalancingModal from '../components/BalancingModal'
 import DateRangePicker from '../components/DateRangePicker'
 import NoticeModal from '../components/NoticeModal'
 import { absUrl, appUrl } from '../lib/url'
@@ -26,7 +25,6 @@ export default function DashboardTab() {
   const running = st.games.filter((g) => g.status !== 'ended')
   const ended = st.games.filter((g) => g.status === 'ended')
   const waitingCount = st.waitlist.filter((w) => w.status === 'waiting' || w.status === 'called').length
-  const seatedCount = st.waitlist.filter((w) => w.status === 'seated').length
 
   const [waitingOpen, setWaitingOpen] = useState(false)
   const [tablesOpen, setTablesOpen] = useState(false)
@@ -60,7 +58,7 @@ export default function DashboardTab() {
     <div className="space-y-8">
       {/* 벤토 타일 — 방문자·게임 셋·빠른 작업 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <BentoTile label="대기 중" value={waitingCount} sub={`착석 ${seatedCount}`} onEdit={() => setWaitingOpen(true)} editLabel="명단" />
+        <BentoTile label="대기 중" value={waitingCount} onEdit={() => setWaitingOpen(true)} editLabel="명단" />
         <BentoTile label="게임 중" value={playingCount} accent="mint" />
         <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={() => setSetsOpen(true)} />
         <Card className="p-5 flex flex-col justify-between gap-3">
@@ -193,7 +191,6 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
   const resumeGame = useStore((s) => s.resumeGame)
   const endGame = useStore((s) => s.endGame)
   const [joinOpen, setJoinOpen] = useState(false)
-  const [balanceOpen, setBalanceOpen] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
@@ -262,7 +259,6 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
         <Link to={`/game/${g.id}`}><Btn sm>게임 관리</Btn></Link>
         <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
         {hasSupabase && g.joinCode && <Btn sm onClick={() => setQrOpen(true)}>바인 QR</Btn>}
-        <Btn sm onClick={() => setBalanceOpen(true)}>밸런싱</Btn>
         <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
         <span className="flex-1" />
         <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
@@ -275,7 +271,6 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
       </div>
 
       <JoinModal game={g} open={joinOpen} onClose={() => setJoinOpen(false)} />
-      <BalancingModal game={g} open={balanceOpen} onClose={() => setBalanceOpen(false)} />
       {confirmEnd && <EndGameModal game={g} open={confirmEnd} onClose={() => setConfirmEnd(false)} />}
       {editOpen && <GameEditModal game={g} open={editOpen} onClose={() => setEditOpen(false)} />}
       {qrOpen && g.joinCode && <GameQrModal game={g} onClose={() => setQrOpen(false)} />}

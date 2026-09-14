@@ -9,7 +9,17 @@ import { Badge, Btn, Modal } from '../components/ui'
  * 좌석 배치도에서 플레이어를 탭해 선택하고, 빈 좌석을 탭하면 이동. 자동 추천은 하지 않는다(사용자 결정, 2026-09-14).
  * 테이블 해체: 그 테이블 사람들을 모두 옮기면(직접 또는 무작위) 게임의 테이블 목록에서 뺀다.
  */
-export default function BalancingModal({ game: g, open, onClose }: { game: Game; open: boolean; onClose: () => void }) {
+export default function BalancingModal({
+  game: g,
+  open,
+  onClose,
+  initialMemberId,
+}: {
+  game: Game
+  open: boolean
+  onClose: () => void
+  initialMemberId?: string | null // 플레이어 리스트 "좌석 이동"에서 열 때 그 사람을 선택한 상태로
+}) {
   const members = useStore((s) => s.members)
   const tables = useStore((s) => s.tables)
   const moveSeat = useStore((s) => s.moveSeat)
@@ -46,14 +56,16 @@ export default function BalancingModal({ game: g, open, onClose }: { game: Game;
     return max.n - min.n >= 2 ? `TABLE ${max.t}(${max.n}명)이 TABLE ${min.t}(${min.n}명)보다 ${max.n - min.n}명 많습니다.` : null
   }, [byTable, g.tables])
 
-  // 닫히면 선택·해체 상태 초기화
+  // 열릴 때 초기 선택 적용, 닫히면 선택·해체 상태 초기화
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setSelected(initialMemberId ?? null)
+    } else {
       setSelected(null)
       setBreaking(null)
       setError(null)
     }
-  }, [open])
+  }, [open, initialMemberId])
   // 선택한 사람이 탈락하거나 사라지면 선택 해제
   useEffect(() => {
     if (selected && !selectedEntry) setSelected(null)
