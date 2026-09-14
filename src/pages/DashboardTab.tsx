@@ -114,8 +114,8 @@ export default function DashboardTab() {
         {records.length === 0 ? (
           <Empty>게임 기록이 없습니다.</Empty>
         ) : (
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
+          <Card className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="text-left text-[15px] text-mut border-b border-line">
                   <th className="px-4 py-3 font-semibold">게임이름 (게임셋)</th>

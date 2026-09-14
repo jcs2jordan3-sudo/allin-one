@@ -39,9 +39,9 @@ export function Card({ className = '', children }: { className?: string; childre
 
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 mb-3">
-      <h2 className="text-[24px] font-bold tracking-tight">{children}</h2>
-      {right && <div className="flex items-center gap-2">{right}</div>}
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 className="text-[24px] font-bold tracking-tight whitespace-nowrap">{children}</h2>
+      {right && <div className="flex items-center gap-2 min-w-0 max-w-full">{right}</div>}
     </div>
   )
 }

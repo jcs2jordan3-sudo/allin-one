@@ -224,11 +224,11 @@ function PlayerList({ game }: { game: Game }) {
           const m = members.find((x) => x.id === e.memberId)
           if (!m) return null
           return (
-            <Card key={e.memberId} className={`px-4 py-3 flex items-center gap-3 ${e.status === 'eliminated' ? 'opacity-60' : ''}`}>
+            <Card key={e.memberId} className={`px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2 ${e.status === 'eliminated' ? 'opacity-60' : ''}`}>
               <span className="text-[15px] text-mut num w-24 shrink-0">TABLE {e.table} - {e.seat}</span>
               <Avatar emoji={m.emoji} color={m.color} size={30} />
-              <span className="font-semibold">{m.nickname}</span>
-              <span className="ml-auto flex items-center gap-2">
+              <span className="font-semibold truncate">{m.nickname}</span>
+              <span className="ml-auto flex items-center gap-2 whitespace-nowrap">
                 {e.status === 'playing' ? (
                   <>
                     <Badge tone="mint">참여 중</Badge>

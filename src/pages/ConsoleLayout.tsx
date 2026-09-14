@@ -8,6 +8,7 @@ import { STAFF_ROLE_LABEL } from '../types'
 import { appUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
 import OfflineBanner from '../components/OfflineBanner'
+import InstallApp from '../components/InstallApp'
 
 const SYNC_META: Record<SyncStatus, { label: string; dot: string; text: string }> = {
   local: { label: '로컬 모드', dot: 'bg-faint', text: 'text-mut' },
@@ -56,7 +57,7 @@ export default function ConsoleLayout() {
     <div className="min-h-screen">
       <OfflineBanner />
       {role.kind === 'staff' && role.devScope && <DevScopeBanner storeName={storeName} />}
-      <header className="glass-panel border-b border-line !rounded-none sticky top-0 z-40">
+      <header className="glass-panel border-b border-line !rounded-none sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3">
@@ -80,6 +81,7 @@ export default function ConsoleLayout() {
               </span>
             </div>
             <nav className="flex items-center gap-1 text-[16px] text-mut">
+              <InstallApp />
               <a href={appUrl(withStore('/rank'))} target="_blank" rel="noreferrer" className="px-2.5 py-1.5 rounded-lg hover:text-ink hover:bg-surface2">
                 공개 랭킹
               </a>
