@@ -1,0 +1,1 @@
+function i(e){let t=e.replace(/\D/g,"");return t.startsWith("82")&&t.length>=11&&(t="0"+t.slice(2)),t}function n(e){const t=i(e);return/^010\d{8}$/.test(t)||/^01[16789]\d{7,8}$/.test(t)}function s(e){const t=i(e);return t.length===11?`${t.slice(0,3)}-${t.slice(3,7)}-${t.slice(7)}`:t.length===10?`${t.slice(0,3)}-${t.slice(3,6)}-${t.slice(6)}`:e.trim()}export{s as f,n as i};
