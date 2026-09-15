@@ -25,4 +25,7 @@ const r = spawnSync(gradlew, [task, '--console=plain'], {
   env: { ...process.env, JAVA_HOME: javaHome, ANDROID_HOME: sdk, ANDROID_SDK_ROOT: sdk },
 })
 if (r.status !== 0) process.exit(r.status ?? 1)
-console.log('\nAPK:', join(android, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'))
+const out = task === 'bundleRelease' ? ['bundle', 'release', 'app-release.aab']
+  : task === 'assembleRelease' ? ['apk', 'release', 'app-release.apk']
+  : ['apk', 'debug', 'app-debug.apk']
+console.log('\n산출물:', join(android, 'app', 'build', 'outputs', ...out))
