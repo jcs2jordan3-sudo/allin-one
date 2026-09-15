@@ -50,6 +50,10 @@
     @media (width >= 40rem) {
       background-attachment: fixed;
     }
+    /* 폰: 색 글로우 그라데이션 없이 단색 — 어두운 저채도 그라데이션은 OLED·웹뷰에서 열화상 같은 색 띠(밴딩)로 그려진다 */
+    @media (width < 40rem) {
+      background: var(--color-bg);
+    }
   }
   ::selection {
     background: color-mix(in srgb, var(--color-mint) 30%, transparent);
@@ -103,6 +107,10 @@
     radial-gradient(900px 600px at 85% 110%, rgba(87, 182, 242, 0.07), transparent 60%),
     radial-gradient(700px 500px at 8% 100%, rgba(233, 187, 86, 0.06), transparent 55%),
     #070a0f;
+  /* 폰: 단색 (본문 배경과 같은 이유) */
+  @media (width < 40rem) {
+    background: #070a0f;
+  }
 }
 .stage-ring {
   animation: stage-pulse 4s ease-in-out infinite;
