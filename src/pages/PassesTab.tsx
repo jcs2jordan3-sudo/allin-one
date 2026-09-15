@@ -297,15 +297,16 @@ export default function PassesTab() {
 
 function AggGrid({ data }: { data: { t: PassType; issued: number; unused: number; used: number }[] }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    // 유형별 한 줄: 이름 ─ 발급 · 미사용 · 사용
+    <div className="divide-y divide-line/60 border border-line rounded-xl bg-surface2/60">
       {data.map(({ t, issued, unused, used }) => (
-        <div key={t.id} className="bg-surface2/60 border border-line rounded-xl p-4">
-          <div className="text-center font-bold mb-3" style={{ color: t.color }}>{t.name}</div>
-          <dl className="space-y-1.5 text-sm">
-            <div className="flex justify-between"><dt className="text-mut">발급</dt><dd className="num font-semibold">{fmtNum(issued)}</dd></div>
-            <div className="flex justify-between"><dt className="text-mut">미사용</dt><dd className="num font-semibold">{fmtNum(unused)}</dd></div>
-            <div className="flex justify-between"><dt className="text-mut">사용</dt><dd className="num font-semibold text-mint">{fmtNum(used)}</dd></div>
-          </dl>
+        <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+          <span className="font-bold truncate" style={{ color: t.color }}>{t.name}</span>
+          <span className="flex items-center gap-x-3 sm:gap-x-5 whitespace-nowrap num">
+            <span><span className="text-mut">발급 </span><span className="font-semibold">{fmtNum(issued)}</span></span>
+            <span><span className="text-mut">미사용 </span><span className="font-semibold">{fmtNum(unused)}</span></span>
+            <span><span className="text-mut">사용 </span><span className="font-semibold text-mint">{fmtNum(used)}</span></span>
+          </span>
         </div>
       ))}
     </div>
