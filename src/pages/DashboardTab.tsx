@@ -321,6 +321,7 @@ function TablesModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   const tables = useStore((s) => s.tables)
   const saveTables = useStore((s) => s.saveTables)
   const [draft, setDraft] = useState<TableInfo[] | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const list = draft ?? tables
 
   const update = (i: number, patch: Partial<TableInfo>) => {
@@ -348,9 +349,16 @@ function TablesModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         </Btn>
       </div>
       <div className="flex justify-end gap-2 mt-5">
-        <Btn variant="ghost" onClick={() => { setDraft(null); onClose() }}>취소</Btn>
-        <Btn variant="primary" onClick={() => { saveTables(list); setDraft(null); onClose() }}>저장</Btn>
+        <Btn variant="ghost" onClick={() => { setDraft(null); setSaveError(null); onClose() }}>취소</Btn>
+        <Btn variant="primary" onClick={async () => {
+          const err = await saveTables(list)
+          if (err) return setSaveError(err)
+          setDraft(null)
+          setSaveError(null)
+          onClose()
+        }}>저장</Btn>
       </div>
+      {saveError && <p className="mt-3 text-sm text-rose text-right">{saveError}</p>}
     </Modal>
   )
 }

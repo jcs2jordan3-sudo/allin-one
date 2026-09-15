@@ -5,3 +5,5 @@ dist
 
 .omc
 e2e/shots
+
+supabase/.temp

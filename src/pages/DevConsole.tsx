@@ -8,6 +8,8 @@ import { Badge, Btn, Card, Field, Input, Modal } from '../components/ui'
 import Splash from '../components/Splash'
 import { LocalNotice } from '../player/JoinPage'
 import { adminCreateStore, adminListStores, adminSelectStore, adminSetStoreOwner, fetchIsPlatformAdmin, type AdminStore } from '../dev/api'
+import BillingSection from '../dev/BillingSection'
+import InquirySection from '../dev/InquirySection'
 
 /**
  * 개발자(플랫폼 관리자) 콘솔 — /dev
@@ -199,6 +201,10 @@ function Dashboard({ email }: { email: string }) {
             ))}
           </div>
         </section>
+
+        <InquirySection />
+
+        <BillingSection stores={stores ?? []} onChanged={() => void load()} />
       </main>
 
       {ownerTarget && <OwnerModal store={ownerTarget} onClose={() => { setOwnerTarget(null); void load() }} />}

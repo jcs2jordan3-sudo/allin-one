@@ -28,6 +28,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        globIgnores: ['landing/**'],
         runtimeCaching: [
           {
             // Pretendard 폰트 CSS·파일 — 한 번 받으면 오프라인에서도 같은 글꼴

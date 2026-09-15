@@ -798,5 +798,88 @@ await test('비로그인은 0건, 개발자가 2호점을 보는 중이면 2호�
   await as(ownerUid)
 })
 
+console.log('\n구독 · 매장 자동 개설 · 테이블 한도')
+await test('결제 자동 개설: 새 이메일이면 매장·대표 초대 생성, 같은 대표 이메일이면 기존 매장에 연결', async () => {
+  await as(null)
+  const sub1 = (await one(`insert into subscriptions (customer_key, email, customer_name, store_name, plan, billing_interval, amount, current_period_end)
+    values ('ck_new', 'NewBuyer@test.com', '김사장', '결제펍', 'standard', 'month', 39000, now() + interval '1 month') returning id`)).id
+  const store1 = (await one(`select _provision_subscription_store($1) as id`, [sub1])).id
+  const st = await one(`select name from stores where id = $1`, [store1])
+  assert.equal(st.name, '결제펍')
+  const owner = await one(`select email, role, name from staff where store_id = $1`, [store1])
+  assert.deepEqual([owner.email, owner.role, owner.name], ['newbuyer@test.com', 'owner', '김사장'])
+  assert.equal((await one(`select count(*)::int as n from game_sets where store_id = $1`, [store1])).n, 1)
+  assert.equal((await one(`select _provision_subscription_store($1) as id`, [sub1])).id, store1) // 재호출해도 같은 매장
+  const sub2 = (await one(`insert into subscriptions (customer_key, email, store_name, plan, billing_interval, amount, current_period_end)
+    values ('ck_owner', 'owner@test.com', '무시될이름', 'pro', 'year', 690000, now() + interval '1 year') returning id`)).id
+  assert.equal((await one(`select _provision_subscription_store($1) as id`, [sub2])).id, storeId) // 기존 대표 매장
+  await as(ownerUid)
+})
+await test('내부 함수는 로그인 사용자도 직접 호출 불가', async () => {
+  await q('set role authenticated')
+  await as(ownerUid)
+  await fails(() => q(`select _provision_subscription_store(gen_random_uuid())`), /permission denied/)
+  await fails(() => q(`select _create_store('x', 'x@test.com', 'x', 'x')`), /permission denied/)
+  await q('reset role')
+})
+await test('스탠다드 구독 매장은 테이블 4개 초과로 늘릴 수 없고, 프로·구독 없는 매장은 제한 없음', async () => {
+  const s1 = (await one(`select store_id from subscriptions where customer_key = 'ck_new'`)).store_id
+  const four = JSON.stringify([1, 2, 3, 4].map((no) => ({ no, seats: 9 })))
+  const five = JSON.stringify([1, 2, 3, 4, 5].map((no) => ({ no, seats: 9 })))
+  await q(`update stores set tables = $1::jsonb where id = $2`, [four, s1])
+  await fails(() => q(`update stores set tables = $1::jsonb where id = $2`, [five, s1]), /테이블 4개까지/)
+  await q(`update stores set tables = $1::jsonb where id = $2`, [five, storeId]) // 프로 구독 매장
+  await q(`update stores set tables = $1::jsonb where id = $2`, [five, store2]) // 구독 없는 매장
+  await q(`update subscriptions set status = 'canceled' where customer_key = 'ck_new'`)
+  await q(`update stores set tables = $1::jsonb where id = $2`, [five, s1]) // 해지된 구독은 한도 없음
+  await q(`update stores set tables = '[{"no":1,"seats":9},{"no":2,"seats":9},{"no":3,"seats":9}]'::jsonb where id = $1`, [storeId])
+})
+await test('구독 조회는 개발자만: 직원은 테이블·RPC 모두 막힘, 개발자는 목록·연결·해지', async () => {
+  await q('set role authenticated')
+  await as(ownerUid)
+  assert.equal((await q('select * from subscriptions')).length, 0)
+  assert.equal((await q('select * from payments')).length, 0)
+  await fails(() => q(`select admin_subscriptions()`), /개발자/)
+  await q('reset role')
+  await as(devUid)
+  const subs = (await one(`select admin_subscriptions() as j`)).j
+  assert.equal(subs.length, 2)
+  const pro = subs.find((x) => x.plan === 'pro')
+  assert.equal(pro.storeId, storeId)
+  await q(`select admin_link_subscription($1, $2)`, [pro.id, store2])
+  assert.equal((await one(`select admin_subscriptions() as j`)).j.find((x) => x.id === pro.id).storeId, store2)
+  await q(`select admin_cancel_subscription($1)`, [pro.id])
+  assert.equal((await one(`select status from subscriptions where id = $1`, [pro.id])).status, 'canceled')
+  await as(ownerUid)
+})
+
+console.log('\n문의 채팅')
+const visitor = '11111111-2222-3333-4444-555555555555'
+await test('방문자(비로그인): 문의를 보내고 자기 스레드만 읽음, 관리자 RPC는 거부', async () => {
+  await q('set role anon')
+  await as(null)
+  const r = (await one(`select inquiry_send($1, '가격이 어떻게 되나요?', '홍길동', '010-1234-5678') as j`, [visitor])).j
+  assert.equal(r.messages.length, 1)
+  assert.equal(r.name, '홍길동')
+  await fails(() => q(`select inquiry_send($1, '   ')`, [visitor]), /내용을 입력/)
+  assert.equal((await one(`select inquiry_fetch('99999999-2222-3333-4444-555555555555') as j`)).j.messages.length, 0)
+  assert.equal((await q(`select * from inquiry_messages`).catch(() => [])).length, 0) // RLS: 테이블 직접 조회는 0건
+  await fails(() => q(`select admin_inquiries()`), /개발자/)
+  await q('reset role')
+})
+await test('개발자: 목록·읽음 처리·답장 → 방문자가 답장을 봄', async () => {
+  await as(devUid)
+  const t = (await one(`select admin_inquiries() as j`)).j.find((x) => x.name === '홍길동')
+  assert.equal(t.unread, true)
+  assert.equal((await one(`select admin_inquiry_messages($1) as j`, [t.id])).j.length, 1)
+  assert.equal((await one(`select admin_inquiries() as j`)).j.find((x) => x.id === t.id).unread, false)
+  await q(`select admin_inquiry_reply($1, '스탠다드는 월 39,000원입니다.')`, [t.id])
+  await as(null)
+  const mine = (await one(`select inquiry_fetch($1) as j`, [visitor])).j
+  assert.equal(mine.messages.length, 2)
+  assert.equal(mine.messages[1].sender, 'admin')
+  await as(ownerUid)
+})
+
 console.log(`\n${passed}개 테스트 통과`)
 await db.close()

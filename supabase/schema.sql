@@ -1741,9 +1741,16 @@ end $$;
 -- 대표 지정/변경: 이메일을 owner로 (초대 행이 없으면 생성, 이미 가입된 계정이면 즉시 연결). 기존 다른 대표는 manager로 내림
 create or replace function public.admin_set_store_owner(p_store uuid, p_owner_email text, p_owner_name text default null) returns void
 language plpgsql security definer set search_path = public as $$
-declare v_email text := lower(trim(coalesce(p_owner_email, ''))); v_uid uuid; v_id uuid; v_other uuid;
 begin
   perform public._require_platform_admin();
+  perform public._set_store_owner(p_store, p_owner_email, p_owner_name, '개발자');
+end $$;
+
+-- 대표 지정 본체 (권한 검사 없음 — admin_set_store_owner·결제 자동 개설에서만 호출, API 실행 권한 없음)
+create or replace function public._set_store_owner(p_store uuid, p_owner_email text, p_owner_name text, p_actor text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_email text := lower(trim(coalesce(p_owner_email, ''))); v_uid uuid; v_id uuid; v_other uuid;
+begin
   if not exists (select 1 from public.stores where id = p_store) then raise exception '매장을 찾을 수 없습니다.'; end if;
   if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then raise exception '대표 이메일 형식이 올바르지 않습니다.'; end if;
   select id into v_uid from auth.users where lower(email) = v_email limit 1;
@@ -1766,16 +1773,23 @@ begin
   end if;
   perform set_config('allinone.reset', 'off', true);
   insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
-  values (p_store, auth.uid(), '개발자', 'store.owner_set', 'staff', v_email,
+  values (p_store, auth.uid(), p_actor, 'store.owner_set', 'staff', v_email,
           jsonb_build_object('email', v_email, 'linked', v_uid is not null));
 end $$;
 
 -- 매장 개설 + 대표 초대 (서비스 구매자). 실패 시 전체 롤백
 create or replace function public.admin_create_store(p_store_name text, p_owner_email text, p_owner_name text default '대표') returns uuid
 language plpgsql security definer set search_path = public as $$
-declare v_store uuid;
 begin
   perform public._require_platform_admin();
+  return public._create_store(p_store_name, p_owner_email, p_owner_name, '개발자');
+end $$;
+
+-- 매장 개설 본체 (권한 검사 없음 — admin_create_store·결제 자동 개설에서만 호출)
+create or replace function public._create_store(p_store_name text, p_owner_email text, p_owner_name text, p_actor text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_store uuid;
+begin
   if coalesce(trim(p_store_name), '') = '' then raise exception '매장 이름을 입력해주세요.'; end if;
   perform set_config('allinone.reset', 'on', true);
   insert into public.stores (name) values (trim(p_store_name)) returning id into v_store;
@@ -1783,8 +1797,8 @@ begin
   perform public._ensure_store_defaults(v_store);
   perform set_config('allinone.reset', 'off', true);
   insert into public.audit_log (store_id, actor_id, actor, action, target_type, target_id, detail)
-  values (v_store, auth.uid(), '개발자', 'store.create', 'store', v_store::text, jsonb_build_object('name', trim(p_store_name)));
-  perform public.admin_set_store_owner(v_store, p_owner_email, p_owner_name);
+  values (v_store, auth.uid(), p_actor, 'store.create', 'store', v_store::text, jsonb_build_object('name', trim(p_store_name)));
+  perform public._set_store_owner(v_store, p_owner_email, p_owner_name, p_actor);
   return v_store;
 end $$;
 
@@ -1834,3 +1848,233 @@ begin
     end;
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 13. 구독·결제 (마케팅 사이트 /intro — 토스페이먼츠 자동결제)
+--   쓰기는 Edge Function(toss-billing, service role)만. 조회는 플랫폼 관리자 RPC(admin_subscriptions)로만.
+--   흐름: 사이트에서 카드 등록(빌링 인증) → 함수가 빌링키 발급 + 첫 결제 → subscriptions/payments 기록
+--        → _provision_subscription_store 가 매장 자동 개설(또는 같은 대표 이메일의 기존 매장에 연결)
+--        → 갱신은 함수 renew (pg_cron 매일, supabase/billing-cron.sql)
+--   요금·테이블 한도는 supabase/functions/_shared/plans.ts 와 _plan_max_tables() 를 같이 맞출 것.
+-- ---------------------------------------------------------------------
+create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  customer_key text not null unique,            -- 토스 customerKey (사이트에서 만든 랜덤 값)
+  email text not null,                          -- 대표 이메일 (콘솔 가입 시 이 이메일이 대표로 연결됨)
+  customer_name text,
+  phone text,
+  store_name text,
+  plan text not null check (plan in ('standard', 'pro')),
+  billing_interval text not null check (billing_interval in ('month', 'year')),
+  amount int not null,                          -- 회당 결제 금액(원, 부가세 포함)
+  billing_key text,
+  card_company text,
+  card_number text,                             -- 마스킹된 카드번호
+  status text not null default 'active' check (status in ('active', 'past_due', 'canceled')),
+  current_period_end timestamptz not null,      -- 다음 결제일
+  failed_count int not null default 0,
+  canceled_at timestamptz,
+  store_id uuid references public.stores(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.subscriptions enable row level security;   -- 정책 없음: service role·RPC로만
+create index if not exists subscriptions_due_idx on public.subscriptions(status, current_period_end);
+create index if not exists subscriptions_store_idx on public.subscriptions(store_id);
+
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  subscription_id uuid not null references public.subscriptions(id) on delete cascade,
+  order_id text not null unique,
+  payment_key text,
+  amount int not null,
+  status text not null check (status in ('DONE', 'FAILED')),
+  approved_at timestamptz,
+  receipt_url text,
+  error text,
+  created_at timestamptz not null default now()
+);
+alter table public.payments enable row level security;
+create index if not exists payments_subscription_idx on public.payments(subscription_id, created_at desc);
+
+-- 결제 완료 후 매장 연결: 같은 이메일이 대표인 매장(무료 체험 등)이 있으면 연결, 없으면 새로 개설
+create or replace function public._provision_subscription_store(p_subscription uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare s public.subscriptions; v_store uuid;
+begin
+  select * into s from public.subscriptions where id = p_subscription for update;
+  if s.id is null then raise exception '구독을 찾을 수 없습니다.'; end if;
+  if s.store_id is not null then return s.store_id; end if;
+  select store_id into v_store from public.staff
+   where lower(email) = lower(s.email) and role = 'owner' order by created_at limit 1;
+  if v_store is null then
+    v_store := public._create_store(coalesce(nullif(trim(s.store_name), ''), '내 매장'), s.email,
+                                    coalesce(nullif(trim(s.customer_name), ''), '대표'), '결제 자동 개설');
+  end if;
+  update public.subscriptions set store_id = v_store, updated_at = now() where id = s.id;
+  return v_store;
+end $$;
+
+-- 요금제별 테이블 한도 (null = 무제한). plans.ts 의 maxTables 와 같은 값
+create or replace function public._plan_max_tables(p_plan text) returns int
+language sql immutable as $$
+  select case p_plan when 'standard' then 4 else null end
+$$;
+
+-- 스탠다드 구독 매장은 테이블을 한도 넘게 늘릴 수 없음 (구독 없는 매장·이미 넘은 매장의 축소·수정은 허용)
+create or replace function public._enforce_table_limit() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_plan text; v_max int;
+begin
+  if new.tables is not distinct from old.tables then return new; end if;
+  select plan into v_plan from public.subscriptions
+   where store_id = new.id and status <> 'canceled' order by created_at desc limit 1;
+  v_max := public._plan_max_tables(v_plan);
+  if v_max is not null
+     and jsonb_array_length(new.tables) > v_max
+     and jsonb_array_length(new.tables) > jsonb_array_length(old.tables) then
+    raise exception '스탠다드 요금제는 테이블 %개까지 사용할 수 있습니다. 더 필요하면 프로 요금제로 변경해주세요.', v_max;
+  end if;
+  return new;
+end $$;
+drop trigger if exists stores_table_limit on public.stores;
+create trigger stores_table_limit before update of tables on public.stores
+  for each row execute function public._enforce_table_limit();
+
+create or replace function public.admin_subscriptions() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', s.id, 'email', s.email, 'customerName', s.customer_name, 'phone', s.phone, 'storeName', s.store_name,
+      'plan', s.plan, 'interval', s.billing_interval, 'amount', s.amount, 'status', s.status,
+      'cardCompany', s.card_company, 'cardNumber', s.card_number, 'failedCount', s.failed_count,
+      'currentPeriodEnd', s.current_period_end, 'createdAt', s.created_at, 'canceledAt', s.canceled_at,
+      'storeId', s.store_id, 'linkedStoreName', (select st.name from public.stores st where st.id = s.store_id),
+      'lastPayment', (select jsonb_build_object('status', p.status, 'amount', p.amount, 'approvedAt', p.approved_at,
+                                                'receiptUrl', p.receipt_url, 'error', p.error, 'createdAt', p.created_at)
+                        from public.payments p where p.subscription_id = s.id order by p.created_at desc limit 1)
+    ) order by s.created_at desc)
+    from public.subscriptions s), '[]'::jsonb);
+end $$;
+
+-- 구독을 매장에 수동 연결 (자동 개설이 실패했거나 다른 매장으로 옮길 때)
+create or replace function public.admin_link_subscription(p_subscription uuid, p_store uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  if p_store is not null and not exists (select 1 from public.stores where id = p_store) then raise exception '매장을 찾을 수 없습니다.'; end if;
+  update public.subscriptions set store_id = p_store, updated_at = now() where id = p_subscription;
+end $$;
+
+-- 구독 해지 — 이미 결제된 기간은 유지하고 다음 결제부터 청구 중단
+create or replace function public.admin_cancel_subscription(p_subscription uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  update public.subscriptions set status = 'canceled', canceled_at = now(), updated_at = now()
+   where id = p_subscription and status <> 'canceled';
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 14. 문의 채팅 (마케팅 사이트 위젯 ↔ 개발자 콘솔)
+--   방문자는 브라우저에 저장한 랜덤 visitor_key(uuid)로 자기 스레드만 읽고 씀 (RPC, security definer).
+--   관리자(플랫폼 관리자)는 admin_inquir* 로 목록·답장.
+-- ---------------------------------------------------------------------
+create table if not exists public.inquiries (
+  id uuid primary key default gen_random_uuid(),
+  visitor_key uuid not null unique,
+  name text,
+  contact text,
+  created_at timestamptz not null default now(),
+  last_message_at timestamptz not null default now(),
+  admin_unread boolean not null default true
+);
+alter table public.inquiries enable row level security;
+create table if not exists public.inquiry_messages (
+  id uuid primary key default gen_random_uuid(),
+  inquiry_id uuid not null references public.inquiries(id) on delete cascade,
+  sender text not null check (sender in ('visitor', 'admin')),
+  body text not null check (char_length(body) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+alter table public.inquiry_messages enable row level security;
+create index if not exists inquiry_messages_thread_idx on public.inquiry_messages(inquiry_id, created_at);
+
+-- 방문자: 내 스레드 읽기
+create or replace function public.inquiry_fetch(p_visitor uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare i public.inquiries;
+begin
+  if p_visitor is null then return jsonb_build_object('messages', '[]'::jsonb); end if;
+  select * into i from public.inquiries where visitor_key = p_visitor;
+  if i.id is null then return jsonb_build_object('messages', '[]'::jsonb); end if;
+  return jsonb_build_object(
+    'name', i.name, 'contact', i.contact,
+    'messages', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'sender', m.sender, 'body', m.body, 'at', m.created_at) order by m.created_at)
+                          from public.inquiry_messages m where m.inquiry_id = i.id), '[]'::jsonb));
+end $$;
+
+-- 방문자: 메시지 보내기 (스레드 없으면 생성). 도배 방지: 방문자당 1시간 30건
+create or replace function public.inquiry_send(p_visitor uuid, p_body text, p_name text default null, p_contact text default null)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_body text := trim(coalesce(p_body, ''));
+begin
+  if p_visitor is null then raise exception '방문자 키가 없습니다.'; end if;
+  if char_length(v_body) = 0 then raise exception '내용을 입력해주세요.'; end if;
+  if char_length(v_body) > 2000 then raise exception '문의는 2,000자까지 입력할 수 있습니다.'; end if;
+  insert into public.inquiries (visitor_key, name, contact)
+    values (p_visitor, nullif(left(trim(coalesce(p_name, '')), 40), ''), nullif(left(trim(coalesce(p_contact, '')), 80), ''))
+  on conflict (visitor_key) do update
+    set name = coalesce(excluded.name, public.inquiries.name),
+        contact = coalesce(excluded.contact, public.inquiries.contact)
+  returning id into v_id;
+  if (select count(*) from public.inquiry_messages m
+       where m.inquiry_id = v_id and m.sender = 'visitor' and m.created_at > now() - interval '1 hour') >= 30 then
+    raise exception '잠시 후 다시 보내주세요.';
+  end if;
+  insert into public.inquiry_messages (inquiry_id, sender, body) values (v_id, 'visitor', v_body);
+  update public.inquiries set last_message_at = now(), admin_unread = true where id = v_id;
+  return public.inquiry_fetch(p_visitor);
+end $$;
+
+create or replace function public.admin_inquiries() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', i.id, 'name', i.name, 'contact', i.contact, 'createdAt', i.created_at, 'lastAt', i.last_message_at, 'unread', i.admin_unread,
+      'last', (select jsonb_build_object('sender', m.sender, 'body', m.body)
+                 from public.inquiry_messages m where m.inquiry_id = i.id order by m.created_at desc limit 1)
+    ) order by i.last_message_at desc)
+    from public.inquiries i), '[]'::jsonb);
+end $$;
+
+create or replace function public.admin_inquiry_messages(p_inquiry uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public._require_platform_admin();
+  update public.inquiries set admin_unread = false where id = p_inquiry and admin_unread;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'sender', m.sender, 'body', m.body, 'at', m.created_at) order by m.created_at)
+                   from public.inquiry_messages m where m.inquiry_id = p_inquiry), '[]'::jsonb);
+end $$;
+
+create or replace function public.admin_inquiry_reply(p_inquiry uuid, p_body text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_body text := trim(coalesce(p_body, ''));
+begin
+  perform public._require_platform_admin();
+  if char_length(v_body) = 0 then raise exception '내용을 입력해주세요.'; end if;
+  if not exists (select 1 from public.inquiries where id = p_inquiry) then raise exception '문의를 찾을 수 없습니다.'; end if;
+  insert into public.inquiry_messages (inquiry_id, sender, body) values (p_inquiry, 'admin', left(v_body, 2000));
+  update public.inquiries set last_message_at = now(), admin_unread = false where id = p_inquiry;
+end $$;
+
+-- 내부 함수 실행 권한 (API 호출 불가 — service role 과 다른 함수 안에서만)
+revoke all on function public._set_store_owner(uuid, text, text, text) from public, anon, authenticated;
+revoke all on function public._create_store(text, text, text, text) from public, anon, authenticated;
+revoke all on function public._provision_subscription_store(uuid) from public, anon, authenticated;
+revoke all on function public._enforce_table_limit() from public, anon, authenticated;

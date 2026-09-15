@@ -27,6 +27,12 @@ const CheckinPage = lazy(() => import('./player/CheckinPage'))
 const ResetRequestPage = lazy(() => import('./pages/ResetPage').then((m) => ({ default: m.ResetRequestPage })))
 const ResetPasswordPage = lazy(() => import('./pages/ResetPage').then((m) => ({ default: m.ResetPasswordPage })))
 const DevConsole = lazy(() => import('./pages/DevConsole'))
+// 마케팅 사이트 (소개·요금제·결제·약관)
+const Landing = lazy(() => import('./marketing/Landing'))
+const Checkout = lazy(() => import('./marketing/Checkout'))
+const BillingSuccess = lazy(() => import('./marketing/BillingResult').then((m) => ({ default: m.BillingSuccess })))
+const BillingFail = lazy(() => import('./marketing/BillingResult').then((m) => ({ default: m.BillingFail })))
+const Terms = lazy(() => import('./marketing/Terms'))
 
 const Lazy = ({ children }: { children: ReactNode }) => <Suspense fallback={<Splash text="불러오는 중…" />}>{children}</Suspense>
 
@@ -159,6 +165,12 @@ export default function App() {
       <Route path="/reset" element={<Lazy><ResetRequestPage /></Lazy>} />
       <Route path="/reset-password" element={<Lazy><ResetPasswordPage /></Lazy>} />
       <Route path="/dev" element={<Lazy><DevConsole /></Lazy>} />
+      {/* 마케팅 사이트 — 로그인 불필요 */}
+      <Route path="/intro" element={<Lazy><Landing /></Lazy>} />
+      <Route path="/intro/checkout" element={<Lazy><Checkout /></Lazy>} />
+      <Route path="/intro/billing/success" element={<Lazy><BillingSuccess /></Lazy>} />
+      <Route path="/intro/billing/fail" element={<Lazy><BillingFail /></Lazy>} />
+      <Route path="/intro/terms" element={<Lazy><Terms /></Lazy>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
