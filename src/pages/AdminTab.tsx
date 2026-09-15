@@ -11,6 +11,7 @@ import { SignupQrModal } from '../components/SignupQr'
 import PasswordChange from '../components/PasswordChange'
 import { useAuth } from '../auth'
 import { withCompetitionRanks } from './RankingTab'
+import { useCan } from '../lib/perm'
 
 type SortKey = 'joined' | 'nickname' | 'P' | 'S' | 'V'
 
@@ -26,6 +27,7 @@ const EMOJIS = ['😎', '🦈', '🎭', '🐯', '🐳', '🔥', '🃏', '🎩', 
 const COLORS = ['#E9BB56', '#57B6F2', '#A98BF5', '#F2A65A', '#4FD1C5', '#F26D76', '#7BC96F', '#D48FD4']
 
 export default function AdminTab() {
+  const can = useCan()
   const st = useStore()
   const [managerModal, setManagerModal] = useState<Manager | 'new' | null>(null)
   const [confirmDelMgr, setConfirmDelMgr] = useState<Manager | null>(null)
@@ -51,7 +53,8 @@ export default function AdminTab() {
 
   return (
     <div className="space-y-8">
-      {/* 직원(매니저) 계정 */}
+      {/* 직원(매니저) 계정 — 대표만 */}
+      {can('manageStaff') && (
       <section>
         <SectionTitle right={<Btn sm variant="gold" onClick={() => setManagerModal('new')}>{hasSupabase ? '직원 초대' : '생성하기'}</Btn>}>
           {hasSupabase ? '직원 계정' : '매니저 계정'}
@@ -59,7 +62,7 @@ export default function AdminTab() {
         {hasSupabase && (
           <p className="text-[15px] text-mut mb-3 leading-relaxed">
             이메일과 역할을 등록하면 초대 상태가 됩니다. 해당 이메일로 콘솔에서 가입하면 자동으로 연결됩니다.
-            역할: 대표(직원 관리·데이터 초기화 포함 전체) · 매니저·딜러(게임 운영·재화 전송·환수·회원 관리). 모든 처리는 작업 이력에 남습니다.
+            역할: 대표(직원·매장 설정·포인트 발행·시즌·이용권 종류·초기화 포함 전체) · 매니저(게임 생성·종료, 회원, 전송·환수, 이용권, 공지) · 딜러(바인·타이머·좌석 이동 등 테이블 진행만). 모든 처리는 작업 이력에 남습니다.
           </p>
         )}
         {st.managers.length === 0 ? (
@@ -81,6 +84,7 @@ export default function AdminTab() {
           </div>
         )}
       </section>
+      )}
 
       {/* 일반 회원 */}
       <section>
@@ -152,7 +156,7 @@ export default function AdminTab() {
       </section>
 
       {/* 매장 설정 */}
-      <StoreSection />
+      {can('storeSettings') && <StoreSection />}
 
       {/* 내 계정 — 클라우드 모드: 비밀번호 변경 */}
       {hasSupabase && <AccountSection />}
@@ -161,10 +165,10 @@ export default function AdminTab() {
       {!hasSupabase && <LockSection />}
 
       {/* 데이터 관리 */}
-      <DataSection />
+      {can('resetData') && <DataSection />}
 
       {/* 작업 이력 (감사 로그) */}
-      <AuditSection />
+      {can('auditLog') && <AuditSection />}
 
       {managerModal && <ManagerModal manager={managerModal === 'new' ? null : managerModal} onClose={() => setManagerModal(null)} />}
       {confirmDelMgr && (

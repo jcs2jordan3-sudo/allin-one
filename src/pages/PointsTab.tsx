@@ -7,10 +7,12 @@ import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle, Segm
 import Avatar from '../components/Avatar'
 import { SignupQrModal } from '../components/SignupQr'
 import DateRangePicker from '../components/DateRangePicker'
+import { useCan } from '../lib/perm'
 
 const PAGE_SIZE = 10
 
 export default function PointsTab() {
+  const can = useCan()
   const st = useStore()
   const [transfer, setTransfer] = useState<{ c: Currency; mode: 'send' | 'reclaim' } | null>(null)
   const [chargeC, setChargeC] = useState<Currency | null>(null)
@@ -62,7 +64,7 @@ export default function PointsTab() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Btn sm variant="gold" onClick={() => setChargeC(c)}>충전</Btn>
+                {can('issuePoints') && <Btn sm variant="gold" onClick={() => setChargeC(c)}>충전</Btn>}
                 <Btn sm onClick={() => setTransfer({ c, mode: 'reclaim' })}>환수하기</Btn>
                 <Btn sm variant="primary" onClick={() => setTransfer({ c, mode: 'send' })}>전송하기</Btn>
               </div>

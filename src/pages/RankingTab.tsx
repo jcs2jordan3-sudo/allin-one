@@ -8,9 +8,11 @@ const MEDALS = ['🥇', '🥈', '🥉']
 
 /** 동점자 동순위 + 차순위 건너뛰기 (예: 3위 2명 → 다음은 5위) — 회원 페이지와 공용이라 lib/rank 로 이동 */
 import { withCompetitionRanks } from '../lib/rank'
+import { useCan } from '../lib/perm'
 export { withCompetitionRanks }
 
 export default function RankingTab() {
+  const can = useCan()
   const st = useStore()
   const [settleOpen, setSettleOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
@@ -34,9 +36,9 @@ export default function RankingTab() {
         <SectionTitle
           right={
             <>
-              {open && <Btn sm onClick={() => setConfirmClose(true)}>시즌 마감</Btn>}
-              {closed && <Btn sm variant="gold" onClick={() => setSettleOpen(true)}>전송 및 환수</Btn>}
-              {!open && !closed && <Btn sm variant="primary" onClick={() => setNewOpen(true)}>새 시즌 시작</Btn>}
+              {can('season') && open && <Btn sm onClick={() => setConfirmClose(true)}>시즌 마감</Btn>}
+              {can('season') && closed && <Btn sm variant="gold" onClick={() => setSettleOpen(true)}>전송 및 환수</Btn>}
+              {can('season') && !open && !closed && <Btn sm variant="primary" onClick={() => setNewOpen(true)}>새 시즌 시작</Btn>}
             </>
           }
         >

@@ -17,6 +17,7 @@ import DateRangePicker from '../components/DateRangePicker'
 import NoticeModal from '../components/NoticeModal'
 import { absUrl, appUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
+import { useCan } from '../lib/perm'
 
 export default function DashboardTab() {
   const st = useStore()
@@ -33,6 +34,7 @@ export default function DashboardTab() {
   const [createOpen, setCreateOpen] = useState(false)
   const [q, setQ] = useState('')
   const [shareMsg, setShareMsg] = useState<string | null>(null)
+  const can = useCan()
 
   const records = useMemo(
     () =>
@@ -57,18 +59,20 @@ export default function DashboardTab() {
   return (
     <div className="space-y-8">
       {/* 벤토 타일 — 방문자·게임 셋·빠른 작업. 폰(lg 미만): 숫자 타일 3개 한 줄 + 빠른 작업 버튼 3개 한 줄 */}
-      <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5 lg:gap-4">
+      <div className={`grid grid-cols-3 ${can('games') ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-2.5 lg:gap-4`}>
         <BentoTile label="대기 중" value={waitingCount} onEdit={() => setWaitingOpen(true)} editLabel="명단" />
         <BentoTile label="게임 중" value={playingCount} accent="mint" />
-        <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={() => setSetsOpen(true)} />
+        <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={can('gameSets') ? () => setSetsOpen(true) : undefined} />
+        {can('games') && (
         <Card className="col-span-3 lg:col-span-1 p-2.5 lg:p-5 flex flex-col justify-between gap-3">
           <span className="hidden lg:block text-[17px] font-bold text-mut">빠른 작업</span>
           <div className="grid grid-cols-3 lg:flex lg:flex-col gap-2">
             <Btn sm variant="primary" className="whitespace-nowrap px-2" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
             <Btn sm className="whitespace-nowrap px-2" onClick={() => setNoticeOpen(true)}>💬 카톡 공지</Btn>
-            <Btn sm className="whitespace-nowrap px-2" onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
+            {can('storeSettings') && <Btn sm className="whitespace-nowrap px-2" onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>}
           </div>
         </Card>
+        )}
       </div>
 
       {/* 진행 중인 게임 */}
@@ -194,6 +198,7 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  const can = useCan()
 
   const elapsed = gameElapsedMs(g, now)
   const pos = levelAt(g.snapshot.levels, elapsed)
@@ -264,14 +269,16 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
       <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-line grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <Btn sm className="px-2 whitespace-nowrap" onClick={() => setJoinOpen(true)}>참가 등록</Btn>
         <Link to={`/game/${g.id}`} className="contents sm:inline"><Btn sm className="w-full sm:w-auto px-2 whitespace-nowrap">게임 관리</Btn></Link>
-        <Btn sm className="px-2 whitespace-nowrap" onClick={() => setEditOpen(true)}>게임 수정</Btn>
+        {can('games') && <Btn sm className="px-2 whitespace-nowrap" onClick={() => setEditOpen(true)}>게임 수정</Btn>}
         {hasSupabase && g.joinCode && <Btn sm className="px-2 whitespace-nowrap" onClick={() => setQrOpen(true)}>바인 QR</Btn>}
         <Btn sm variant="ghost" className="px-2 whitespace-nowrap max-sm:border max-sm:border-line" onClick={onShare}>현황 공유</Btn>
         <a href={appUrl(withStore(`/display/${g.id}`))} target="_blank" rel="noreferrer" className="contents sm:inline sm:order-4">
           <Btn sm variant="gold" className="w-full sm:w-auto px-2 whitespace-nowrap">타이머</Btn>
         </a>
         <span className="hidden sm:block flex-1 sm:order-2" />
-        <Btn sm variant="danger" className={`${hasSupabase && g.joinCode ? 'col-span-3' : ''} sm:col-span-1 sm:order-3 px-2 whitespace-nowrap`} onClick={() => setConfirmEnd(true)}>종료</Btn>
+        {can('games') && (
+          <Btn sm variant="danger" className={`${hasSupabase && g.joinCode ? 'col-span-3' : ''} sm:col-span-1 sm:order-3 px-2 whitespace-nowrap`} onClick={() => setConfirmEnd(true)}>종료</Btn>
+        )}
       </div>
       <div className="mt-3 text-right hidden sm:block">
         <Link to={`/game/${g.id}`} className="text-[16px] text-mut hover:text-mint">자세히 보기 ›</Link>

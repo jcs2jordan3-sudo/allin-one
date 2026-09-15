@@ -9,6 +9,7 @@ import { appUrl } from '../lib/url'
 import { withStore } from '../lib/storeUrl'
 import OfflineBanner from '../components/OfflineBanner'
 import InstallApp from '../components/InstallApp'
+import { useCan, type Perm } from '../lib/perm'
 
 const SYNC_META: Record<SyncStatus, { label: string; dot: string; text: string }> = {
   local: { label: '로컬 모드', dot: 'bg-faint', text: 'text-mut' },
@@ -18,13 +19,14 @@ const SYNC_META: Record<SyncStatus, { label: string; dot: string; text: string }
   offline: { label: '오프라인', dot: 'bg-rose animate-pulse', text: 'text-rose' },
 }
 
-const tabs = [
+// perm 이 있는 탭은 그 권한이 있는 역할에게만 보인다 (딜러: 매장 현황·랭킹만)
+const tabs: { to: string; label: string; perm?: Perm }[] = [
   { to: '/', label: '매장 현황' },
-  { to: '/points', label: '포인트 내역' },
-  { to: '/passes', label: '이용권' },
+  { to: '/points', label: '포인트 내역', perm: 'transfers' },
+  { to: '/passes', label: '이용권', perm: 'passes' },
   { to: '/ranking', label: '랭킹' },
-  { to: '/events', label: '이벤트' },
-  { to: '/admin', label: '회원 관리' },
+  { to: '/events', label: '이벤트', perm: 'events' },
+  { to: '/admin', label: '회원 관리', perm: 'members' },
 ]
 
 export default function ConsoleLayout() {
@@ -35,6 +37,7 @@ export default function ConsoleLayout() {
   const lockPin = useStore((s) => s.lockPin)
   const lock = useSession((s) => s.lock)
   const role = useAuth((s) => s.role)
+  const can = useCan()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -96,7 +99,7 @@ export default function ConsoleLayout() {
           </div>
           {/* 게임 상세 등 하위 페이지에서도 탭 유지 */}
           <nav className="flex gap-1 -mb-px overflow-x-auto">
-            {tabs.map((t) => {
+            {tabs.filter((t) => !t.perm || can(t.perm)).map((t) => {
               const active = t.to === '/' ? pathname === '/' || pathname.startsWith('/game') : pathname.startsWith(t.to)
               return (
                 <NavLink

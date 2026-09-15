@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 import { hasSupabase } from './lib/supabase'
 import { useAuth } from './auth'
+import { useCan, type Perm } from './lib/perm'
 import { ensurePublicScope, ensureStaffScope, useReady, useSession, useStore } from './store'
 import Splash from './components/Splash'
 import ConsoleLayout from './pages/ConsoleLayout'
@@ -28,6 +29,12 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPage').then((m) => ({ 
 const DevConsole = lazy(() => import('./pages/DevConsole'))
 
 const Lazy = ({ children }: { children: ReactNode }) => <Suspense fallback={<Splash text="불러오는 중…" />}>{children}</Suspense>
+
+// 역할 권한이 없는 탭 주소로 직접 들어오면 매장 현황으로 (딜러가 /admin 등을 치고 들어오는 경우)
+function PermGate({ perm, children }: { perm: Perm; children: ReactNode }) {
+  const can = useCan()
+  return can(perm) ? <>{children}</> : <Navigate to="/" replace />
+}
 
 // ── 콘솔 게이트 ───────────────────────────────────────────────────────────
 // 로컬 모드: PIN 간편 잠금 / 클라우드 모드: 직원 계정 로그인
@@ -131,11 +138,11 @@ export default function App() {
     <Routes>
       <Route element={<ConsoleGate><ConsoleLayout /></ConsoleGate>}>
         <Route index element={<DashboardTab />} />
-        <Route path="points" element={<PointsTab />} />
-        <Route path="passes" element={<PassesTab />} />
+        <Route path="points" element={<PermGate perm="transfers"><PointsTab /></PermGate>} />
+        <Route path="passes" element={<PermGate perm="passes"><PassesTab /></PermGate>} />
         <Route path="ranking" element={<RankingTab />} />
-        <Route path="events" element={<EventsTab />} />
-        <Route path="admin" element={<AdminTab />} />
+        <Route path="events" element={<PermGate perm="events"><EventsTab /></PermGate>} />
+        <Route path="admin" element={<PermGate perm="members"><AdminTab /></PermGate>} />
         <Route path="game/:id" element={<GameDetail />} />
       </Route>
       {/* 공개 페이지 */}

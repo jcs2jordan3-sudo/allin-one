@@ -460,19 +460,69 @@ await test('회원 본인 프로필 수정', async () => {
 })
 
 console.log('\n역할 권한')
-await test('딜러: 재화 전송·참가 등록·취소 가능, 데이터 초기화·직원 관리는 불가', async () => {
+// 역할 3단계: 대표(전체) > 매니저(운영·회원·재화·이용권) > 딜러(테이블 진행만)
+const g2 = (await one(`select create_game('딜러 게임', $1, array[3]) as id`, [gsId])).id
+await test('딜러: 바인·일시정지·재개·좌석 이동·대기자 등록은 가능', async () => {
   const dealerUid = (await one(`select user_id from staff where email = 'late@test.com'`)).user_id
   await as(dealerUid)
-  await q(`select transfer_to_member($1, 'P', 3, '현금 결제')`, [p1.id])
-  const g2 = (await one(`select create_game('딜러 게임', $1, array[3]) as id`, [gsId])).id
   const r = (await one(`select game_buyin($1, $2, 'BUYIN', 'P') as r`, [g2, p1.id])).r
   assert.equal(r.type, 'BUYIN')
-  await q(`select cancel_game($1)`, [g2])
-  assert.equal((await one('select cancelled from games where id = $1', [g2])).cancelled, true)
-  await fails(() => q(`select reset_store('empty')`), /권한이 없습니다/)
+  await q(`select pause_game($1)`, [g2])
+  await q(`select resume_game($1)`, [g2])
+  assert.equal((await one('select status from games where id = $1', [g2])).status, 'running')
+  await q(`select waitlist_add(null, '딜러가 받은 대기', null)`)
+  await as(ownerUid)
+})
+await test('딜러: 게임 생성·종료·취소, 재화 전송, 회원 등록, 이용권 발급, 시즌 마감, 초기화는 서버가 거부', async () => {
+  const dealerUid = (await one(`select user_id from staff where email = 'late@test.com'`)).user_id
+  await as(dealerUid)
+  const denied = /권한이 없습니다/
+  await fails(() => q(`select create_game('x', $1, array[3])`, [gsId]), denied)
+  await fails(() => q(`select end_game($1)`, [g2]), denied)
+  await fails(() => q(`select cancel_game($1)`, [g2]), denied)
+  await fails(() => q(`select transfer_to_member($1, 'P', 1, 'x')`, [p1.id]), denied)
+  await fails(() => q(`select reclaim_from_member($1, 'P', 1, 'x')`, [p1.id]), denied)
+  await fails(() => q(`select create_member('딜러등록')`), denied)
+  await fails(() => q(`select adjust_rp($1, 1, 'x')`, [p1.id]), denied)
+  await fails(() => q(`select close_season()`), denied)
+  await fails(() => q(`select issue_to_store('P', 1, 'x')`), denied)
+  await fails(() => q(`select reset_store('empty')`), denied)
+  await as(ownerUid)
+})
+await test('딜러 RLS: 직원 추가·매장 설정·회원 수정·게임 직접 수정 모두 막힘 (0행)', async () => {
+  const dealerUid = (await one(`select user_id from staff where email = 'late@test.com'`)).user_id
+  await as(dealerUid)
   await q('set role authenticated')
   const ins = await db.query(`insert into staff (store_id, email, name, role) values ($1, 'x@test.com', 'x', 'dealer')`, [storeId]).catch((e) => e)
   assert.match(String(ins.message), /row-level security/)
+  assert.equal((await db.query(`update stores set name = '딜러가바꿈' where id = $1`, [storeId])).affectedRows, 0)
+  assert.equal((await db.query(`update members set memo = '딜러메모' where id = $1`, [p1.id])).affectedRows, 0)
+  assert.equal((await db.query(`update games set reg_closed_manual = true where id = $1`, [g2])).affectedRows, 0)
+  assert.equal((await q('select * from audit_log')).length, 0) // 작업 이력은 매니저 이상
+  assert.ok((await q('select * from members')).length > 0) // 참가 등록용 회원 목록은 읽음
+  await q('reset role')
+  await as(ownerUid)
+})
+await q(`select cancel_game($1)`, [g2]) // 테이블 3 반납
+await test('매니저: 게임 생성·취소, 전송, 회원 등록 가능 / 포인트 발행·시즌·이용권 종류·매장 설정·직원은 불가', async () => {
+  await as(mgrUid)
+  const g3 = (await one(`select create_game('매니저 게임', $1, array[3]) as id`, [gsId])).id
+  await q(`select transfer_to_member($1, 'P', 1, '매니저 전송')`, [p1.id])
+  await q(`select cancel_game($1)`, [g3])
+  assert.ok((await one(`select create_member('매니저등록') as m`)).m)
+  const denied = /권한이 없습니다/
+  await fails(() => q(`select issue_to_store('P', 1, 'x')`), denied)
+  await fails(() => q(`select start_season('x')`), denied)
+  await fails(() => q(`select close_season()`), denied)
+  await fails(() => q(`select reset_store('empty')`), denied)
+  await q('set role authenticated')
+  assert.equal((await db.query(`update stores set name = '매니저가바꿈' where id = $1`, [storeId])).affectedRows, 0)
+  const pt = await db.query(`insert into pass_types (store_id, name, valid_days) values ($1, '매니저유형', 30)`, [storeId]).catch((e) => e)
+  assert.match(String(pt.message), /row-level security/)
+  const ins = await db.query(`insert into staff (store_id, email, name, role) values ($1, 'y@test.com', 'y', 'dealer')`, [storeId]).catch((e) => e)
+  assert.match(String(ins.message), /row-level security/)
+  assert.equal((await db.query(`update members set memo = '매니저메모' where id = $1`, [p1.id])).affectedRows, 1)
+  assert.ok((await q('select * from audit_log')).length > 0)
   await q('reset role')
   await as(ownerUid)
 })

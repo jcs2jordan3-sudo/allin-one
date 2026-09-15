@@ -530,7 +530,7 @@ create or replace function public.transfer_to_member(
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members;
 begin
-  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
+  s := public._require_staff(array['owner', 'manager']);
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
   return public._move(s.store_id, 'store', m.id::text, p_currency, p_amount, p_reason, s.name, p_game, p_request);
@@ -542,7 +542,7 @@ create or replace function public.reclaim_from_member(
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members;
 begin
-  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
+  s := public._require_staff(array['owner', 'manager']);
   if coalesce(trim(p_reason), '') = '' then raise exception '환수 사유를 입력해주세요.'; end if;
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
@@ -555,7 +555,7 @@ returns uuid
 language plpgsql security definer set search_path = public as $$
 declare s public.staff;
 begin
-  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
+  s := public._require_staff(array['owner']);
   if coalesce(trim(p_reason), '') = '' then raise exception '사유를 입력해주세요.'; end if;
   return public._move(s.store_id, 'hq', 'store', p_currency, p_amount, trim(p_reason), s.name, null, p_request);
 end $$;
@@ -567,7 +567,7 @@ create or replace function public.create_member(
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; v_id uuid;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   if coalesce(trim(p_nickname), '') = '' then raise exception '닉네임을 입력해주세요.'; end if;
   insert into public.members (store_id, no, nickname, emoji, color, phone, real_name)
   values (s.store_id, public.next_member_no(s.store_id), trim(p_nickname),
@@ -582,7 +582,7 @@ create or replace function public.leave_member(p_member uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members; w record;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   select * into m from public.members where id = p_member and store_id = s.store_id;
   if m.id is null then raise exception '회원을 찾을 수 없습니다.'; end if;
   if m.status = 'left' then return; end if;
@@ -606,7 +606,7 @@ create or replace function public.adjust_rp(p_member uuid, p_delta bigint, p_rea
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; m public.members;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   if coalesce(p_delta, 0) = 0 then raise exception '수량을 입력해주세요.'; end if;
   if coalesce(trim(p_reason), '') = '' then raise exception '사유를 입력해주세요. (수동 RP 조정은 사유 필수)'; end if;
   select * into m from public.members where id = p_member and store_id = s.store_id;
@@ -641,7 +641,7 @@ create or replace function public.save_console_state(p_key text, p_value jsonb) 
 language plpgsql security definer set search_path = public as $$
 declare s public.staff;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   if p_key is null or p_key !~ '^[a-z_]{1,32}$' then raise exception '잘못된 키입니다.'; end if;
   insert into public.console_state (store_id, state, writer, updated_at)
   values (s.store_id, jsonb_build_object(p_key, coalesce(p_value, 'null'::jsonb)), s.name, now())
@@ -659,7 +659,7 @@ declare
   v_kst timestamp := p_now at time zone 'Asia/Seoul';
   v_day date; v_y_from timestamptz; v_y_to timestamptz; v_w_from timestamptz; v_w_to timestamptz;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   v_day := (v_kst - interval '6 hours')::date;
   v_y_from := ((v_day - 1)::timestamp + interval '6 hours') at time zone 'Asia/Seoul';
   v_y_to := (v_day::timestamp + interval '6 hours') at time zone 'Asia/Seoul';
@@ -694,7 +694,7 @@ create or replace function public.create_game(
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; gs public.game_sets; v_id uuid; v_busy int[];
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   if coalesce(trim(p_name), '') = '' then raise exception '게임 이름을 입력해주세요.'; end if;
   select * into gs from public.game_sets where id = p_game_set and store_id = s.store_id;
   if gs.id is null then raise exception '게임 셋을 선택해주세요.'; end if;
@@ -960,7 +960,7 @@ create or replace function public.end_game(p_game uuid, p_ranking uuid[] default
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; g public.games; r record; i int; v_prize jsonb; v_rp bigint; v_now timestamptz := now();
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   select * into g from public.games where id = p_game and store_id = s.store_id for update;
   if g.id is null or g.status = 'ended' then return; end if;
 
@@ -1000,7 +1000,7 @@ create or replace function public.cancel_game(p_game uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; g public.games; b record; r record; v_prize jsonb; v_rp bigint;
 begin
-  s := public._require_staff(); -- 대표·매니저·딜러 모두 허용 (직원 관리·초기화만 대표 전용)
+  s := public._require_staff(array['owner', 'manager']);
   select * into g from public.games where id = p_game and store_id = s.store_id for update;
   if g.id is null or g.cancelled then return; end if;
 
@@ -1035,7 +1035,7 @@ create or replace function public.start_season(p_name text) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; v_id uuid;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner']);
   if exists (select 1 from public.seasons where store_id = s.store_id and status in ('open', 'closed')) then
     raise exception '진행 중이거나 정산 대기 중인 시즌이 있습니다.';
   end if;
@@ -1048,7 +1048,7 @@ create or replace function public.close_season() returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; v_id uuid; v_results jsonb;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner']);
   select id into v_id from public.seasons where store_id = s.store_id and status = 'open' limit 1;
   if v_id is null then raise exception '진행 중인 시즌이 없습니다.'; end if;
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -1066,7 +1066,7 @@ create or replace function public.settle_season(p_rewards jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; sn public.seasons; r jsonb; v_amt bigint; v_results jsonb := '[]'::jsonb;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner']);
   select * into sn from public.seasons where store_id = s.store_id and status = 'closed' limit 1;
   if sn.id is null then raise exception '마감된 시즌이 없습니다. 먼저 시즌을 마감하세요.'; end if;
   for r in select value from jsonb_array_elements(coalesce(sn.results, '[]'::jsonb)) loop
@@ -1248,7 +1248,7 @@ create or replace function public.issue_passes(p_type uuid, p_member uuid, p_cou
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; t public.pass_types; m public.members;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   select * into t from public.pass_types where id = p_type and store_id = s.store_id and not archived;
   select * into m from public.members where id = p_member and store_id = s.store_id and status = 'active';
   if t.id is null or m.id is null then raise exception '유형 또는 회원을 찾을 수 없습니다.'; end if;
@@ -1263,7 +1263,7 @@ create or replace function public.use_pass(p_pass uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; p public.passes; t public.pass_types;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   select * into p from public.passes where id = p_pass and store_id = s.store_id for update;
   if p.id is null then raise exception '이용권을 찾을 수 없습니다.'; end if;
   if p.status <> 'unused' then raise exception '이미 사용되었거나 회수된 이용권입니다.'; end if;
@@ -1278,7 +1278,7 @@ create or replace function public.extend_pass(p_pass uuid, p_days int) returns v
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; p public.passes; t public.pass_types;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   select * into p from public.passes where id = p_pass and store_id = s.store_id for update;
   if p.id is null then raise exception '이용권을 찾을 수 없습니다.'; end if;
   if p.status <> 'unused' then raise exception '미사용 상태의 이용권만 연장할 수 있습니다.'; end if;
@@ -1293,7 +1293,7 @@ create or replace function public.revoke_pass(p_pass uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff; p public.passes; t public.pass_types;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   select * into p from public.passes where id = p_pass and store_id = s.store_id for update;
   if p.id is null then raise exception '이용권을 찾을 수 없습니다.'; end if;
   if p.status <> 'unused' then raise exception '미사용 상태의 이용권만 회수할 수 있습니다.'; end if;
@@ -1308,7 +1308,7 @@ create or replace function public.remove_pass_type(p_type uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner']);
   if not exists (select 1 from public.pass_types where id = p_type and store_id = s.store_id) then raise exception '유형을 찾을 수 없습니다.'; end if;
   if exists (select 1 from public.passes where type_id = p_type and status = 'unused' and now() <= expires_at) then
     raise exception '미사용 이용권이 남아 있는 유형은 삭제할 수 없습니다.';
@@ -1325,7 +1325,7 @@ create or replace function public.reset_biz_day() returns void
 language plpgsql security definer set search_path = public as $$
 declare s public.staff;
 begin
-  s := public._require_staff();
+  s := public._require_staff(array['owner', 'manager']);
   update public.stores set biz_reset_at = now() where id = s.store_id;
   insert into public.pass_log (store_id, action, operator) values (s.store_id, '집계 초기화', s.name);
 end $$;
@@ -1582,12 +1582,15 @@ drop policy if exists stores_select on public.stores;
 create policy stores_select on public.stores for select using (true);
 drop policy if exists stores_update on public.stores;
 create policy stores_update on public.stores for update
-  using (id = public.staff_store_id())
-  with check (id = public.staff_store_id());
+  using (id = public.staff_store_id() and public.staff_role() = 'owner')
+  with check (id = public.staff_store_id() and public.staff_role() = 'owner');
 
 drop policy if exists console_state_all on public.console_state;
-create policy console_state_all on public.console_state for all
-  using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
+create policy console_state_all on public.console_state for select
+  using (store_id = public.staff_store_id());
+drop policy if exists console_state_write on public.console_state;
+create policy console_state_write on public.console_state for all
+  using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager')) with check (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 
 drop policy if exists staff_select on public.staff;
 create policy staff_select on public.staff for select using (store_id = public.staff_store_id());
@@ -1607,8 +1610,8 @@ create policy members_select on public.members for select
   using (store_id = public.staff_store_id() or user_id = auth.uid());
 drop policy if exists members_update on public.members;
 create policy members_update on public.members for update
-  using (store_id = public.staff_store_id())
-  with check (store_id = public.staff_store_id());
+  using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'))
+  with check (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 
 drop policy if exists wallets_select on public.wallets;
 create policy wallets_select on public.wallets for select
@@ -1616,20 +1619,23 @@ create policy wallets_select on public.wallets for select
 
 drop policy if exists ledger_select on public.ledger;
 create policy ledger_select on public.ledger for select
-  using (store_id = public.staff_store_id()
+  using ((store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'))
          or from_owner = public.my_member_id()::text or to_owner = public.my_member_id()::text);
 
 drop policy if exists game_sets_all on public.game_sets;
-create policy game_sets_all on public.game_sets for all
-  using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
+create policy game_sets_all on public.game_sets for select
+  using (store_id = public.staff_store_id());
+drop policy if exists game_sets_write on public.game_sets;
+create policy game_sets_write on public.game_sets for all
+  using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager')) with check (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 
 drop policy if exists games_select on public.games;
 create policy games_select on public.games for select using (true);
 drop policy if exists games_insert on public.games;
-create policy games_insert on public.games for insert with check (store_id = public.staff_store_id());
+create policy games_insert on public.games for insert with check (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 drop policy if exists games_update on public.games;
 create policy games_update on public.games for update
-  using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
+  using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager')) with check (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 
 drop policy if exists game_entries_select on public.game_entries;
 create policy game_entries_select on public.game_entries for select using (true);
@@ -1647,7 +1653,7 @@ drop policy if exists events_select on public.events;
 create policy events_select on public.events for select using (true);
 drop policy if exists events_write on public.events;
 create policy events_write on public.events for all
-  using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
+  using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager')) with check (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 
 -- v2 테이블
 alter table public.pass_types enable row level security;
@@ -1659,8 +1665,11 @@ alter table public.waitlist enable row level security;
 alter table public.audit_log enable row level security;
 
 drop policy if exists pass_types_all on public.pass_types;
-create policy pass_types_all on public.pass_types for all
-  using (store_id = public.staff_store_id()) with check (store_id = public.staff_store_id());
+create policy pass_types_all on public.pass_types for select
+  using (store_id = public.staff_store_id());
+drop policy if exists pass_types_write on public.pass_types;
+create policy pass_types_write on public.pass_types for all
+  using (store_id = public.staff_store_id() and public.staff_role() = 'owner') with check (store_id = public.staff_store_id() and public.staff_role() = 'owner');
 drop policy if exists pass_types_member_select on public.pass_types;
 create policy pass_types_member_select on public.pass_types for select
   using (exists (select 1 from public.passes p where p.type_id = pass_types.id and p.member_id = public.my_member_id()));
@@ -1668,7 +1677,7 @@ drop policy if exists passes_select on public.passes;
 create policy passes_select on public.passes for select
   using (store_id = public.staff_store_id() or member_id = public.my_member_id());
 drop policy if exists pass_log_select on public.pass_log;
-create policy pass_log_select on public.pass_log for select using (store_id = public.staff_store_id());
+create policy pass_log_select on public.pass_log for select using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 drop policy if exists seasons_select on public.seasons;
 create policy seasons_select on public.seasons for select using (true);
 drop policy if exists rp_log_select on public.rp_log;
@@ -1678,7 +1687,7 @@ drop policy if exists waitlist_select on public.waitlist;
 create policy waitlist_select on public.waitlist for select
   using (store_id = public.staff_store_id() or member_id = public.my_member_id());
 drop policy if exists audit_log_select on public.audit_log;
-create policy audit_log_select on public.audit_log for select using (store_id = public.staff_store_id());
+create policy audit_log_select on public.audit_log for select using (store_id = public.staff_store_id() and public.staff_role() in ('owner', 'manager'));
 
 -- ---------------------------------------------------------------------
 -- 10b. 플랫폼 관리자(개발자) — 매장을 여러 개 개설하고 각 매장의 대표를 지정

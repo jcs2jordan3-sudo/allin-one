@@ -5,6 +5,7 @@ import { useNow } from '../lib/time'
 import { fmtDateTime, fmtNum } from '../lib/format'
 import { Badge, Btn, Card, Empty, Field, Input, Modal, Pager, SectionTitle, Segmented, Select } from '../components/ui'
 import Avatar from '../components/Avatar'
+import { useCan } from '../lib/perm'
 
 const DAY = 86_400_000
 const PAGE = 8
@@ -25,6 +26,7 @@ const STATUS_META: Record<ViewStatus, { label: string; tone: 'mint' | 'gold' | '
 }
 
 export default function PassesTab() {
+  const can = useCan()
   const st = useStore()
   const now = useNow(60_000)
   const [issueOpen, setIssueOpen] = useState(false)
@@ -97,7 +99,7 @@ export default function PassesTab() {
         <SectionTitle
           right={
             <>
-              <Btn sm onClick={() => setTypesOpen(true)}>유형 관리</Btn>
+              {can('passTypes') && <Btn sm onClick={() => setTypesOpen(true)}>유형 관리</Btn>}
               <Btn sm variant="primary" onClick={() => setIssueOpen(true)}>+ 발급하기</Btn>
             </>
           }
