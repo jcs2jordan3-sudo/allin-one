@@ -166,18 +166,18 @@ function LedgerRow({ entry: l, expanded, onToggle }: { entry: LedgerEntry; expan
   return (
     <Card className="px-4 py-3">
       <button onClick={onToggle} className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 text-left">
-        <span className={`font-bold num text-sm ${storeGain ? 'text-mint' : 'text-rose'}`}>
+        <span className={`font-bold num text-sm whitespace-nowrap ${storeGain ? 'text-mint' : 'text-rose'}`}>
           {CURRENCY_LABEL[l.currency]} {storeGain ? '+' : '−'}{fmtNum(l.amount)}{CURRENCY_UNIT[l.currency]}
         </span>
-        <span className="text-mut">|</span>
-        <span className="text-sm">
+        <span className="text-mut hidden sm:inline">|</span>
+        <span className="text-sm w-full sm:w-auto order-1 sm:order-none">
           {nameOf(l.from)} <span className="text-mut">→</span> {nameOf(l.to)}
         </span>
         <span className="ml-auto flex items-center gap-3">
           <span className="text-[16px] text-mut num">잔여 {fmtNum(l.storeBalanceAfter)}{CURRENCY_UNIT[l.currency]}</span>
           <span className={`text-mut text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}>▾</span>
         </span>
-        <span className="w-full text-[15px] text-faint num">{fmtDateTime(l.ts)}</span>
+        <span className="w-full text-[15px] text-faint num order-2 sm:order-none">{fmtDateTime(l.ts)}</span>
       </button>
       {expanded && (
         <div className="mt-3 pt-3 border-t border-line/60 grid sm:grid-cols-3 gap-2 text-[16px] text-mut">

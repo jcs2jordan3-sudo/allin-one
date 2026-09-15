@@ -49,6 +49,7 @@ export default function GameDetail() {
 
   return (
     <div className="space-y-6">
+      <Link to="/" className="inline-block text-[15px] text-mut hover:text-ink -mb-3">‹ 매장 현황</Link>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-extrabold tracking-tight">게임 상세 정보</h1>
         <div className="flex gap-2 flex-wrap">
@@ -64,7 +65,6 @@ export default function GameDetail() {
           {!game.cancelled && can('games') && (
             <Btn sm variant="danger" onClick={() => setConfirmCancel(true)}>게임 취소</Btn>
           )}
-          <Link to="/"><Btn sm variant="ghost">‹ 매장 현황</Btn></Link>
         </div>
       </div>
 
@@ -88,9 +88,9 @@ export default function GameDetail() {
               {game.status === 'paused' && <Badge tone="gold">일시정지 중</Badge>}
             </dd>
           </div>
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <dt className="text-[15px] font-semibold text-mut mb-0.5">블라인드 레벨</dt>
-            <dd className="font-semibold num flex items-center gap-1.5 flex-wrap">
+            <dd className="font-semibold num flex items-center gap-1.5 whitespace-nowrap">
               {game.status !== 'ended' && (
                 <button
                   onClick={() => adjustToLevel(game.id, Math.max(0, pos.idx - 1))}

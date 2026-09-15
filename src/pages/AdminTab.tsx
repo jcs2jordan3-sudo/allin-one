@@ -90,24 +90,24 @@ export default function AdminTab() {
       <section>
         <SectionTitle
           right={
-            <div className="flex items-center gap-2">
-              <div className="w-56 max-w-full">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="w-full sm:w-56">
                 <Input placeholder="닉네임 혹은 번호를 입력해보세요" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
-              <Btn sm onClick={() => setQrOpen(true)}>가입 QR</Btn>
-              <Btn sm variant="primary" onClick={() => setAddOpen(true)}>+ 회원 등록</Btn>
+              <Btn sm className="whitespace-nowrap" onClick={() => setQrOpen(true)}>가입 QR</Btn>
+              <Btn sm variant="primary" className="whitespace-nowrap" onClick={() => setAddOpen(true)}>+ 회원 등록</Btn>
             </div>
           }
         >
           일반 회원 <span className="text-mut font-semibold">{members.length}명</span>
         </SectionTitle>
 
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex sm:flex-wrap gap-2 mb-4 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           {SORTS.map((s) => (
             <button
               key={s.key}
               onClick={() => setSort(s.key)}
-              className={`px-3.5 py-1.5 rounded-sm border text-[16px] font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-sm border text-[16px] font-semibold transition-colors ${
                 sort === s.key ? 'border-gold/60 bg-gold/10 text-gold' : 'border-line2 text-mut hover:text-ink'
               }`}
             >
@@ -120,13 +120,13 @@ export default function AdminTab() {
           <Empty>조건에 맞는 회원이 없습니다.</Empty>
         ) : (
           <Card className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[520px]">
+            <table className="w-full text-sm sm:min-w-[520px]">
               <thead>
                 <tr className="text-left text-[15px] text-mut border-b border-line">
                   <th className="px-4 py-3 font-semibold">닉네임</th>
                   <th className="px-4 py-3 font-semibold text-right">포인트</th>
-                  <th className="px-4 py-3 font-semibold text-right">시드</th>
-                  <th className="px-4 py-3 font-semibold text-right">음료권</th>
+                  <th className="px-4 py-3 font-semibold text-right hidden sm:table-cell">시드</th>
+                  <th className="px-4 py-3 font-semibold text-right hidden sm:table-cell">음료권</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,8 +145,8 @@ export default function AdminTab() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right num text-gold">{fmtNum(m.balances.P)}</td>
-                    <td className="px-4 py-3 text-right num text-sky">{fmtNum(m.balances.S)}</td>
-                    <td className="px-4 py-3 text-right num text-viol">{m.balances.V}</td>
+                    <td className="px-4 py-3 text-right num text-sky hidden sm:table-cell">{fmtNum(m.balances.S)}</td>
+                    <td className="px-4 py-3 text-right num text-viol hidden sm:table-cell">{m.balances.V}</td>
                   </tr>
                 ))}
               </tbody>
@@ -245,12 +245,12 @@ function AuditSection() {
   return (
     <section>
       <SectionTitle>작업 이력 <span className="text-[15px] text-mut font-normal ml-1">재화 이동은 포인트 내역에 기록</span></SectionTitle>
-      <div className="flex flex-wrap gap-2 mb-3">
+      <div className="flex sm:flex-wrap gap-2 mb-3 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         {AUDIT_FILTERS.map((fl) => (
           <button
             key={fl.key}
             onClick={() => { setFilter(fl.key); setPage(1) }}
-            className={`px-3 py-1 rounded-sm border text-[15px] font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-3 py-1 rounded-sm border text-[15px] font-semibold transition-colors ${
               filter === fl.key ? 'border-mint/60 bg-mint/10 text-mint' : 'border-line2 text-mut hover:text-ink'
             }`}
           >

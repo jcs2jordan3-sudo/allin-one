@@ -114,12 +114,12 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="inline-flex bg-surface2 border border-line rounded-xl p-1 gap-0.5">
+    <div className="inline-flex max-w-full overflow-x-auto bg-surface2 border border-line rounded-xl p-1 gap-0.5">
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`px-3.5 py-1.5 rounded-lg text-[16px] font-medium transition-colors ${
+          className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[15px] sm:text-[16px] font-medium whitespace-nowrap transition-colors ${
             value === o.value ? 'bg-mint text-mintink' : 'text-mut hover:text-ink'
           }`}
         >
