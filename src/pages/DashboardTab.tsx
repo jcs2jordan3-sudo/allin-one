@@ -56,17 +56,17 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-8">
-      {/* 벤토 타일 — 방문자·게임 셋·빠른 작업 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 벤토 타일 — 방문자·게임 셋·빠른 작업. 폰(lg 미만): 숫자 타일 3개 한 줄 + 빠른 작업 버튼 3개 한 줄 */}
+      <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5 lg:gap-4">
         <BentoTile label="대기 중" value={waitingCount} onEdit={() => setWaitingOpen(true)} editLabel="명단" />
         <BentoTile label="게임 중" value={playingCount} accent="mint" />
         <BentoTile label="게임 셋" value={st.gameSets.length} onEdit={() => setSetsOpen(true)} />
-        <Card className="p-5 flex flex-col justify-between gap-3">
-          <span className="text-[17px] font-bold text-mut">빠른 작업</span>
-          <div className="flex flex-col gap-2">
-            <Btn sm variant="primary" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
-            <Btn sm onClick={() => setNoticeOpen(true)}>💬 카톡 공지</Btn>
-            <Btn sm onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
+        <Card className="col-span-3 lg:col-span-1 p-2.5 lg:p-5 flex flex-col justify-between gap-3">
+          <span className="hidden lg:block text-[17px] font-bold text-mut">빠른 작업</span>
+          <div className="grid grid-cols-3 lg:flex lg:flex-col gap-2">
+            <Btn sm variant="primary" className="whitespace-nowrap px-2" onClick={() => setCreateOpen(true)}>+ 게임 추가</Btn>
+            <Btn sm className="whitespace-nowrap px-2" onClick={() => setNoticeOpen(true)}>💬 카톡 공지</Btn>
+            <Btn sm className="whitespace-nowrap px-2" onClick={() => setTablesOpen(true)}>⚙ 테이블 설정</Btn>
           </div>
         </Card>
       </div>
@@ -169,15 +169,15 @@ function BentoTile({
   editLabel?: string
 }) {
   return (
-    <Card className="p-5 flex flex-col justify-between gap-3 min-h-28">
-      <div className="flex items-center justify-between">
-        <span className="text-[17px] font-bold text-mut">{label}</span>
+    <Card className="p-3 lg:p-5 flex flex-col justify-between gap-2 lg:gap-3 lg:min-h-28">
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[14px] lg:text-[17px] font-bold text-mut whitespace-nowrap">{label}</span>
         {onEdit && (
-          <button onClick={onEdit} className="text-[15px] text-mut hover:text-mint transition-colors">{editLabel}</button>
+          <button onClick={onEdit} className="text-[13px] lg:text-[15px] text-mut hover:text-mint transition-colors whitespace-nowrap">{editLabel}</button>
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <div className={`text-5xl font-extrabold num leading-none ${accent === 'mint' ? 'text-mint' : ''}`}>{value}</div>
+        <div className={`text-3xl lg:text-5xl font-extrabold num leading-none ${accent === 'mint' ? 'text-mint' : ''}`}>{value}</div>
         {sub && <span className="text-[16px] font-semibold text-mut num">{sub}</span>}
       </div>
     </Card>
@@ -202,16 +202,18 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
   const playing = g.entries.filter((e) => e.status === 'playing').length
   const capacity = g.tables.reduce((acc, t) => acc + (useStore.getState().tables.find((x) => x.no === t)?.seats ?? 9), 0)
   const buyinRule = g.snapshot.buyinRules.find((r) => r.type === 'BUYIN')
-  const costText = buyinRule
-    ? Object.entries(buyinRule.cost).map(([c, v]) => `${v}${CURRENCY_UNIT[c as keyof typeof CURRENCY_UNIT]}`).join(' 또는 ')
-    : '—'
+  const costParts = buyinRule
+    ? Object.entries(buyinRule.cost).map(([c, v]) => `${v}${CURRENCY_UNIT[c as keyof typeof CURRENCY_UNIT]}`)
+    : []
+  const costText = costParts.length ? costParts.join(' 또는 ') : '—'
+  const costShort = costParts.length ? costParts.join('/') : '—' // 폰: "1P/1S/1장"
 
   return (
-    <Card className="p-5">
+    <Card className="p-4 sm:p-5">
       {/* 1행: 제목·상태 배지 ─ 우측 끝에 타이머 제어 (한 줄 고정, 폭이 좁아도 버튼은 내려가지 않음) */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
-          <h3 className="text-2xl font-bold tracking-tight">{g.name}</h3>
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex items-center gap-2 sm:gap-2.5 flex-wrap">
+          <h3 className="text-xl sm:text-2xl font-bold tracking-tight">{g.name}</h3>
           {scheduled ? (
             <Badge tone="sky">예약됨 · {fmtDateTime(g.startedAt)} 시작</Badge>
           ) : closed ? (
@@ -226,47 +228,56 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
         </div>
         <div className="shrink-0">
           {g.status === 'paused' ? (
-            <Btn sm variant="primary" onClick={() => resumeGame(g.id)} className="min-w-28 whitespace-nowrap" aria-label="재개">
+            <Btn sm variant="primary" onClick={() => resumeGame(g.id)} className="sm:min-w-28 whitespace-nowrap" aria-label="재개">
               ▶ 재개
             </Btn>
           ) : (
-            <Btn sm variant="danger" onClick={() => pauseGame(g.id)} className="min-w-28 whitespace-nowrap" aria-label="일시정지">
+            <Btn sm variant="danger" onClick={() => pauseGame(g.id)} className="sm:min-w-28 whitespace-nowrap" aria-label="일시정지">
               ⏸ 일시정지
             </Btn>
           )}
         </div>
       </div>
 
-      {/* 2행: 진행 정보 */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-base text-mut">
-        <span className="inline-flex items-center gap-1.5">
-          <Badge tone="gold">{pos.level.label}</Badge>
-          <span className="num text-ink font-semibold">
-            {pos.level.type === 'break' ? '휴식' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
+      {/* 2행: 진행 정보 — 폰: 두 줄(레벨·블라인드 ↔ 경과 시간 / 테이블·인원·비용), sm 이상: 기존 한 줄 */}
+      <div className="mt-3 text-[15px] sm:text-base text-mut sm:flex sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2">
+        <div className="flex items-center justify-between gap-3 sm:contents">
+          <span className="inline-flex items-center gap-1.5">
+            <Badge tone="gold">{pos.level.label}</Badge>
+            <span className="num text-ink font-semibold">
+              {pos.level.type === 'break' ? '휴식' : `${fmtNum(pos.level.sb)}/${fmtNum(pos.level.bb)} (${fmtNum(pos.level.ante)})`}
+            </span>
           </span>
-        </span>
-        <span className="num">📍 TABLE {g.tables.join('·')}</span>
-        <span className="num">👥 {playing}/{capacity}</span>
-        <span className="num">⏱ {fmtClock(elapsed)}</span>
-        <span>
-          참가 비용 <span className="text-gold font-semibold">{costText}</span>
-        </span>
+          <span className="num sm:order-3">⏱ {fmtClock(elapsed)}</span>
+        </div>
+        <div className="mt-1.5 sm:mt-0 flex flex-wrap items-center gap-x-3 gap-y-1 sm:contents">
+          <span className="num">
+            📍 <span className="sm:hidden">T</span><span className="hidden sm:inline">TABLE</span> {g.tables.join('·')}
+          </span>
+          <span className="num">👥 {playing}/{capacity}</span>
+          <span className="sm:order-4">
+            <span className="sm:hidden">💰 </span>
+            <span className="hidden sm:inline">참가 비용 </span>
+            <span className="text-gold font-semibold sm:hidden">{costShort}</span>
+            <span className="text-gold font-semibold hidden sm:inline">{costText}</span>
+          </span>
+        </div>
       </div>
 
-      {/* 3행: 액션 — 한 줄, 좁으면 자연스럽게 다음 줄로 */}
-      <div className="mt-4 pt-4 border-t border-line flex flex-wrap items-center gap-2">
-        <Btn sm onClick={() => setJoinOpen(true)}>참가 등록</Btn>
-        <Link to={`/game/${g.id}`}><Btn sm>게임 관리</Btn></Link>
-        <Btn sm onClick={() => setEditOpen(true)}>게임 수정</Btn>
-        {hasSupabase && g.joinCode && <Btn sm onClick={() => setQrOpen(true)}>바인 QR</Btn>}
-        <Btn sm variant="ghost" onClick={onShare}>현황 공유</Btn>
-        <span className="flex-1" />
-        <Btn sm variant="danger" onClick={() => setConfirmEnd(true)}>종료</Btn>
-        <a href={appUrl(withStore(`/display/${g.id}`))} target="_blank" rel="noreferrer">
-          <Btn sm variant="gold">타이머</Btn>
+      {/* 3행: 액션 — 폰: 3열 격자(종료는 마지막 줄 전체 폭), sm 이상: 한 줄 */}
+      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-line grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <Btn sm className="px-2 whitespace-nowrap" onClick={() => setJoinOpen(true)}>참가 등록</Btn>
+        <Link to={`/game/${g.id}`} className="contents sm:inline"><Btn sm className="w-full sm:w-auto px-2 whitespace-nowrap">게임 관리</Btn></Link>
+        <Btn sm className="px-2 whitespace-nowrap" onClick={() => setEditOpen(true)}>게임 수정</Btn>
+        {hasSupabase && g.joinCode && <Btn sm className="px-2 whitespace-nowrap" onClick={() => setQrOpen(true)}>바인 QR</Btn>}
+        <Btn sm variant="ghost" className="px-2 whitespace-nowrap max-sm:border max-sm:border-line" onClick={onShare}>현황 공유</Btn>
+        <a href={appUrl(withStore(`/display/${g.id}`))} target="_blank" rel="noreferrer" className="contents sm:inline sm:order-4">
+          <Btn sm variant="gold" className="w-full sm:w-auto px-2 whitespace-nowrap">타이머</Btn>
         </a>
+        <span className="hidden sm:block flex-1 sm:order-2" />
+        <Btn sm variant="danger" className={`${hasSupabase && g.joinCode ? 'col-span-3' : ''} sm:col-span-1 sm:order-3 px-2 whitespace-nowrap`} onClick={() => setConfirmEnd(true)}>종료</Btn>
       </div>
-      <div className="mt-3 text-right">
+      <div className="mt-3 text-right hidden sm:block">
         <Link to={`/game/${g.id}`} className="text-[16px] text-mut hover:text-mint">자세히 보기 ›</Link>
       </div>
 

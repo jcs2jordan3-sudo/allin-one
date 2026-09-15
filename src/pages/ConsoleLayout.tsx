@@ -24,7 +24,7 @@ const tabs = [
   { to: '/passes', label: '이용권' },
   { to: '/ranking', label: '랭킹' },
   { to: '/events', label: '이벤트' },
-  { to: '/admin', label: '관리' },
+  { to: '/admin', label: '회원 관리' },
 ]
 
 export default function ConsoleLayout() {
