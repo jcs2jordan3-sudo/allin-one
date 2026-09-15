@@ -163,7 +163,7 @@ export function Modal({
   if (side) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex justify-end">
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/70" onClick={onClose} />
         <div
           role="dialog"
           aria-modal="true"
@@ -184,7 +184,7 @@ export function Modal({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/70" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
