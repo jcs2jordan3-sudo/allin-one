@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Btn, Modal } from './ui'
+import { isNative } from '../native'
 
 // Chrome/Edge(안드로이드·데스크톱)가 주는 설치 프롬프트 이벤트
 interface BeforeInstallPromptEvent extends Event {
@@ -8,6 +9,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const isStandalone = () =>
+  isNative ||
   window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !/crios|fxios/i.test(navigator.userAgent)
 

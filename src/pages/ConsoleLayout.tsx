@@ -113,7 +113,7 @@ export default function ConsoleLayout() {
           </nav>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24 mb-[env(safe-area-inset-bottom)]">
         <Outlet />
       </main>
     </div>

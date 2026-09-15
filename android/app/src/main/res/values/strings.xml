@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ALL-IN ONE</string>
+    <string name="title_activity_main">ALL-IN ONE</string>
+    <string name="package_name">com.allinone.holdem</string>
+    <string name="custom_url_scheme">com.allinone.holdem</string>
+</resources>
