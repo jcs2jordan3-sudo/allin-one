@@ -11,6 +11,8 @@
     "native:build": "tsc -b && vite build",
     "native:sync": "cap sync android",
     "native:apk": "node native/build-apk.mjs",
+    "native:release": "node native/build-apk.mjs bundleRelease",
+    "native:release-apk": "node native/build-apk.mjs assembleRelease",
     "native:icons": "node native/make-icons.mjs && capacitor-assets generate --android --iconBackgroundColor \"#0b0f16\" --iconBackgroundColorDark \"#0b0f16\" --splashBackgroundColor \"#07090e\" --splashBackgroundColorDark \"#07090e\"",
     "db:test": "node supabase/test/schema.test.mjs",
     "e2e:local": "node e2e/local.mjs",

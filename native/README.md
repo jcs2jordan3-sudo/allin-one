@@ -29,7 +29,13 @@ $env:CAP_SERVER_URL='https://jcs2jordan3-sudo.github.io/allin-one/'; npm run nat
 ```
 이렇게 만든 APK는 웹 배포(gh-pages)만 하면 앱도 같이 바뀐다. 스토어 제출용은 번들 방식(위)을 쓴다.
 
-## 스토어 배포 전 할 일
-- 서명 키(keystore) 만들고 `android/app/build.gradle`에 release signingConfig 추가 → `npm run native:apk bundleRelease`(.aab).
-- `android/app/build.gradle`의 versionCode/versionName 올리기.
+## 릴리스(스토어 제출용) 빌드
+```powershell
+npm run native:build; npm run native:sync
+npm run native:release      # android/app/build/outputs/bundle/release/app-release.aab (Play Console 업로드용)
+npm run native:release-apk  # android/app/build/outputs/apk/release/app-release.apk (폰 직접 설치용, 서명됨)
+```
+- 서명 키: `홀덤회원관리/keys/allinone-release.jks` (git 밖). 비밀번호는 `android/keystore.properties`(git 무시)와
+  `keys/keystore.properties.backup`에 있다. **keys/ 폴더를 잃으면 같은 앱으로 업데이트를 올릴 수 없으니 반드시 따로 백업.**
+- 새 버전을 올릴 때마다 `android/app/build.gradle`의 versionCode를 1씩 올리고 versionName을 맞춘다(현재 1 / 0.1.0).
 - Supabase Auth 비밀번호 재설정 링크는 웹(https)으로 열리므로 앱 딥링크(App Links)는 추후.
