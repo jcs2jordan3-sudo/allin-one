@@ -221,10 +221,6 @@ function GameCard({ game: g, now, onShare }: { game: Game; now: number; onShare:
           ) : (
             <Badge tone="mint">참여 가능</Badge>
           )}
-          {g.status === 'paused' && <Badge tone="gold">일시정지 중</Badge>}
-          {!scheduled && g.status !== 'ended' && elapsed > 12 * 3_600_000 && (
-            <Badge tone="rose">12시간 초과 — 종료 확인 필요</Badge>
-          )}
         </div>
         <div className="shrink-0">
           {g.status === 'paused' ? (
